@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐔 Sistema de Inventario - Asadero</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* ... (Estilos sin cambios) ... */
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .tab-button { padding: 0.75rem 1.5rem; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.3s ease; font-weight: 500; color: #4b5563; display: inline-flex; align-items: center; }
+        .tab-button:hover { background-color: #e5e7eb; border-bottom-color: #9ca3af; }
+        .tab-button.active { border-bottom-color: #4f46e5; color: #4f46e5; font-weight: 600; }
+        .tab-button.disabled { color: #9ca3af; cursor: not-allowed; background-color: transparent !important; border-bottom-color: transparent !important; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        button { transition: all 0.2s ease-in-out; }
+        button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .card { background-color: white; border-radius: 0.75rem; padding: 1.5rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); margin-bottom: 1.5rem; }
+        .icon { width: 1.25rem; height: 1.25rem; display: inline-block; vertical-align: middle; margin-right: 0.5rem; }
+        .feedback { padding: 0.75rem 1rem; border-radius: 0.5rem; margin-top: 1.5rem; font-size: 0.875rem; display: none; position: fixed; bottom: 1rem; right: 1rem; background-color: white; z-index: 50; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .feedback-success { background-color: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+        .feedback-error { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+        #login-screen { max-width: 400px; margin: 5rem auto; padding: 2rem; background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .hidden { display: none; }
+        .cart-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid #e5e7eb; }
+        .cart-item:last-child { border-bottom: none; }
+        .cart-remove-btn { background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.25rem; }
+        .cart-remove-btn:hover { color: #dc2626; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div id="login-screen">
+        <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Iniciar Sesión</h2>
+        <form id="login-form" onsubmit="handleLogin(event)">
+            <div class="mb-4"> <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Usuario</label> <input type="text" id="username" name="username" required class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="admin / venta"> </div>
+            <div class="mb-6"> <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label> <input type="password" id="password" name="password" required class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Contraseña"> </div>
+            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium flex items-center justify-center"> <i data-lucide="log-in" class="icon"></i> Ingresar </button>
+            <p id="login-error" class="text-red-600 text-sm mt-3 text-center hidden">Usuario o contraseña incorrectos.</p>
+        </form>
+    </div>
+
+    <div id="main-app" class="hidden">
+        <header class="mb-6 flex justify-between items-center">
+            <div class="text-center flex-grow"> <h1 class="text-3xl md:text-4xl font-bold text-gray-800">🐔 Sistema de Inventario - Asadero</h1> <p class="text-gray-600 mt-1">Gestión de pollos, presas y productos</p> </div>
+             <div class="flex items-center space-x-4"> <span id="user-info" class="text-sm text-gray-600"></span> <button id="logout-button" onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap"> <i data-lucide="log-out" class="w-4 h-4 mr-1"></i> Salir </button> </div>
+        </header>
+
+        <div class="mb-6 border-b border-gray-200 bg-white rounded-lg shadow-sm">
+            <nav id="tabs-nav" class="-mb-px flex space-x-4 px-4 overflow-x-auto" aria-label="Tabs"> <button class="tab-button" onclick="showTab('venta')" data-tab="venta"> <i data-lucide="shopping-cart" class="icon"></i>Ventas </button> <button class="tab-button" onclick="showTab('inventario')" data-tab="inventario"> <i data-lucide="clipboard-list" class="icon"></i>Inventario </button> <button class="tab-button" onclick="showTab('gestion')" data-tab="gestion"> <i data-lucide="settings" class="icon"></i>Gestión </button> <button class="tab-button" onclick="showTab('historial')" data-tab="historial"> <i data-lucide="history" class="icon"></i>Historial </button> </nav>
+        </div>
+
+        <div id="tab-content-container">
+            <div id="tab-venta" class="tab-content">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2">
+                        <div class="card">
+                            <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center"> <i data-lucide="plus-circle" class="icon text-blue-600"></i>Añadir Items a la Venta </h2>
+                            <div class="space-y-4">
+                                <div class="p-3 border rounded-md bg-gray-50"> <label for="sell-combo-tipo" class="block text-sm font-medium text-gray-700 mb-1">Combo:</label> <div class="flex flex-wrap sm:flex-nowrap space-y-2 sm:space-y-0 sm:space-x-2 items-center"> <select id="sell-combo-tipo" class="block w-full sm:w-auto flex-grow rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select> <input type="number" id="sell-combo-cantidad" min="1" value="1" class="block w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant."> <button onclick="agregarComboAlCarrito()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap justify-center w-full sm:w-auto"> <i data-lucide="shopping-cart" class="w-4 h-4 mr-1"></i> Añadir </button> </div> </div>
+                                <div class="p-3 border rounded-md bg-gray-50"> <label for="sell-presas-tipo" class="block text-sm font-medium text-gray-700 mb-1">Presas:</label> <div class="flex flex-wrap sm:flex-nowrap space-y-2 sm:space-y-0 sm:space-x-2 items-center"> <select id="sell-presas-tipo" class="block w-full sm:w-auto flex-grow rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"> <option value="pechuga">Pechuga</option> <option value="muslo">Muslo</option> <option value="ala">Ala</option> <option value="pierna">Pierna</option> </select> <input type="number" id="sell-presas-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant."> <button onclick="agregarPresasAlCarrito()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center justify-center w-full sm:w-auto"> <i data-lucide="shopping-cart" class="w-4 h-4 mr-1"></i> Add </button> </div> </div>
+                                <div class="p-3 border rounded-md bg-gray-50"> <label for="sell-producto-nombre" class="block text-sm font-medium text-gray-700 mb-1">Producto:</label> <div class="flex flex-wrap sm:flex-nowrap space-y-2 sm:space-y-0 sm:space-x-2 items-center"> <select id="sell-producto-nombre" class="block w-full sm:w-auto flex-grow rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select> <input type="number" id="sell-producto-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant."> <button onclick="agregarProductoAlCarrito()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center justify-center w-full sm:w-auto"> <i data-lucide="shopping-cart" class="w-4 h-4 mr-1"></i> Add </button> </div> </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-1">
+                         <div class="card sticky top-4"> <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center"> <i data-lucide="shopping-bag" class="icon text-green-600"></i>Carrito de Venta </h2> <div id="carrito-display" class="mb-4 min-h-[100px] max-h-[40vh] overflow-y-auto"> <ul id="carrito-lista" class="space-y-1 text-sm"> <li class="italic text-gray-400">El carrito está vacío.</li> </ul> </div> <button id="vender-carrito-btn" onclick="procesarVentaCarrito()" class="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium flex items-center justify-center" disabled> <i data-lucide="receipt" class="w-4 h-4 mr-1"></i> Vender Carrito (<span id="carrito-total-items">0</span>) </button> </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-inventario" class="tab-content">
+                 <div class="card"> <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center"> <i data-lucide="clipboard-list" class="icon text-purple-600"></i>Estado Actual del Inventario </h2> <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"> <div class="md:col-span-1"> <h3 class="text-lg font-medium text-gray-600 mb-2">Presas Disponibles</h3> <ul id="lista-presas" class="space-y-1 text-gray-700"></ul> <p class="text-sm text-gray-500 mt-2">Pollos equivalentes: <span id="pollos-equivalentes" class="font-semibold">0</span></p> </div> <div class="md:col-span-1"> <h3 class="text-lg font-medium text-gray-600 mb-2">Productos Adicionales</h3> <ul id="lista-productos" class="space-y-1 text-gray-700"></ul> </div> <div class="md:col-span-1"> <h3 class="text-lg font-medium text-gray-600 mb-2">Gráfico Presas</h3> <div class="relative h-64"> <canvas id="inventoryChart"></canvas> </div> </div> </div> </div>
+            </div>
+
+            <div id="tab-gestion" class="tab-content">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center"> <i data-lucide="package-plus" class="icon text-blue-600"></i>Agregar Inventario </h2>
+                        <div class="space-y-4">
+                            <div> <label for="add-pollos-cantidad" class="block text-sm font-medium text-gray-700">Pollos Enteros:</label> <div class="flex space-x-2 mt-1"> <input type="number" id="add-pollos-cantidad" name="add-pollos" min="1" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cantidad"> <button onclick="agregarPollos()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Agregar </button> </div> </div>
+                            <div> <label for="add-presas-tipo" class="block text-sm font-medium text-gray-700">Presas Individuales:</label> <div class="flex space-x-2 mt-1"> <select id="add-presas-tipo" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"> <option value="pechuga">Pechuga</option> <option value="muslo">Muslo</option> <option value="ala">Ala</option> <option value="pierna">Pierna</option> </select> <input type="number" id="add-presas-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant."> <button onclick="agregarPresas()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Add </button> </div> </div>
+                            <div> <label for="add-producto-nombre" class="block text-sm font-medium text-gray-700">Producto Adicional:</label> <div class="flex space-x-2 mt-1"> <input type="text" id="add-producto-nombre" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Nombre (Ej: Papas)"> <input type="number" id="add-producto-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant."> <button onclick="agregarProducto()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Add </button> </div> </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center"> <i data-lucide="trash-2" class="icon text-red-600"></i>Eliminar Inventario (Merma) </h2>
+                        <div class="space-y-4">
+                             <div> <label for="remove-pollos-cantidad" class="block text-sm font-medium text-gray-700">Pollos Enteros:</label> <div class="flex space-x-2 mt-1"> <input type="number" id="remove-pollos-cantidad" min="1" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cantidad a eliminar"> <button onclick="eliminarPollos()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="trash" class="w-4 h-4 mr-1"></i> Eliminar </button> </div> </div>
+                             <div> <label for="remove-presas-tipo" class="block text-sm font-medium text-gray-700">Presas Individuales:</label> <div class="flex space-x-2 mt-1"> <select id="remove-presas-tipo" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"> <option value="pechuga">Pechuga</option> <option value="muslo">Muslo</option> <option value="ala">Ala</option> <option value="pierna">Pierna</option> </select> <input type="number" id="remove-presas-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant."> <button onclick="eliminarPresas()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="trash" class="w-4 h-4 mr-1"></i> Del </button> </div> </div>
+                             <div> <label for="remove-producto-nombre" class="block text-sm font-medium text-gray-700">Producto Adicional:</label> <div class="flex space-x-2 mt-1"> <select id="remove-producto-nombre" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select> <input type="number" id="remove-producto-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant."> <button onclick="eliminarProducto()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="trash" class="w-4 h-4 mr-1"></i> Del </button> </div> </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-historial" class="tab-content">
+                 <div class="card"> <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center"> <i data-lucide="history" class="icon text-orange-600"></i>Historial de Movimientos (Últimos 50) </h2> <ul id="historial-movimientos" class="space-y-2 text-sm text-gray-600 max-h-96 overflow-y-auto pr-2 border rounded-md p-3 bg-gray-50"></ul> </div>
+            </div>
+        </div>
+
+        <div id="feedback-zone" class="feedback"></div>
+
+    </div> <script>
+        // --- CONFIGURACIÓN ---
+        // --- CAMBIO: Define la URL base de tu API backend ---
+        // Si corres localmente: "http://127.0.0.1:5000"
+        // Si despliegas el backend (ej. en Render): "https://tu-app-inventario.onrender.com"
+        const API_BASE_URL = ""; // Deja vacío para usar rutas relativas si corres todo junto localmente
+                                 // o pon la URL completa de tu backend desplegado.
+
+        // --- ESTADO GLOBAL (CLIENT-SIDE) ---
+        let inventario = { pollosEnteros: 0, presas: {}, productos: {}, history: [], combos: {}, presasPorPollo: {} };
+        const nombresCombosDisplay = { "combo_1_8_pechuga": "1/8 Pollo Pechuga", "combo_1_8_muslo": "1/8 Pollo Muslo", "combo_1_8_ala": "1/8 Pollo Ala", "combo_1_8_pierna": "1/8 Pollo Pierna", "combo_1_4_pechuga_ala": "1/4 Pollo Pechuga + Ala", "combo_1_4_muslo_pierna": "1/4 Pollo Muslo + Pierna", "combo_1_2": "1/2 Pollo", "combo_entero": "Pollo Entero" };
+        let currentUserRole = null;
+        let currentUsername = null;
+        let carrito = [];
+        let inventoryChart = null;
+
+        // --- Referencias DOM ---
+        const loginScreenEl = document.getElementById('login-screen');
+        const mainAppEl = document.getElementById('main-app');
+        const userInfoEl = document.getElementById('user-info');
+        const listaPresasEl = document.getElementById('lista-presas');
+        const listaProductosEl = document.getElementById('lista-productos');
+        const pollosEquivalentesEl = document.getElementById('pollos-equivalentes');
+        const historialMovimientosEl = document.getElementById('historial-movimientos');
+        const feedbackZoneEl = document.getElementById('feedback-zone');
+        const comboSelectEl = document.getElementById('sell-combo-tipo');
+        const comboCantidadEl = document.getElementById('sell-combo-cantidad');
+        const productoVentaSelectEl = document.getElementById('sell-producto-nombre');
+        const productoEliminarSelectEl = document.getElementById('remove-producto-nombre');
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const carritoListaEl = document.getElementById('carrito-lista');
+        const venderCarritoBtn = document.getElementById('vender-carrito-btn');
+        const carritoTotalItemsEl = document.getElementById('carrito-total-items');
+
+
+        // --- Lógica de Utilidad y UI General ---
+        function mostrarFeedback(mensaje, tipo = 'success') { /* ... (igual que antes) ... */ }
+        function calcularPollosEquivalentes() { /* ... (igual que antes) ... */ }
+        function actualizarUI() { /* ... (igual que antes) ... */ }
+        function actualizarSelectProductos() { /* ... (igual que antes) ... */ }
+        function llenarSelectCombos() { /* ... (igual que antes) ... */ }
+        async function handleLogin(event) { /* ... (Actualizada con API_BASE_URL) ... */ }
+        function handleLogout() { /* ... (igual que antes) ... */ }
+        function setupUIForRole() { /* ... (igual que antes) ... */ }
+        async function cargarDatosIniciales() { /* ... (Actualizada con API_BASE_URL) ... */ }
+        function showTab(tabId) { /* ... (igual que antes) ... */ }
+        function agregarComboAlCarrito() { /* ... (igual que antes) ... */ }
+        function agregarPresasAlCarrito() { /* ... (igual que antes) ... */ }
+        function agregarProductoAlCarrito() { /* ... (igual que antes) ... */ }
+        function removerDelCarrito(index) { /* ... (igual que antes) ... */ }
+        function actualizarDisplayCarrito() { /* ... (igual que antes) ... */ }
+        async function procesarVentaCarrito() { /* ... (Actualizada con API_BASE_URL) ... */ }
+        async function agregarPollos() { /* ... (Actualizada con API_BASE_URL) ... */ }
+        async function agregarPresas() { /* ... (Actualizada con API_BASE_URL) ... */ }
+        async function agregarProducto() { /* ... (Actualizada con API_BASE_URL) ... */ }
+        async function eliminarPollos() { /* ... (Actualizada con API_BASE_URL) ... */ }
+        async function eliminarPresas() { /* ... (Actualizada con API_BASE_URL) ... */ }
+        async function eliminarProducto() { /* ... (Actualizada con API_BASE_URL) ... */ }
+        function inicializarGrafico() { /* ... (igual que antes) ... */ }
+        function actualizarGrafico() { /* ... (igual que antes) ... */ }
+
+
+        // --- Implementaciones de funciones (Copiadas/Actualizadas) ---
+
+        function mostrarFeedback(mensaje, tipo = 'success') {
+            feedbackZoneEl.textContent = mensaje;
+            feedbackZoneEl.className = `feedback feedback-${tipo}`;
+            feedbackZoneEl.style.display = 'block';
+            setTimeout(() => {
+                if (feedbackZoneEl.textContent === mensaje) {
+                    feedbackZoneEl.style.display = 'none';
+                }
+            }, 4000);
+        }
+
+        function calcularPollosEquivalentes() {
+            if (!inventario || !inventario.presas || !inventario.presasPorPollo) return 0;
+            const totalPresas = Object.values(inventario.presas).reduce((sum, cant) => sum + (cant || 0), 0);
+            const presasPorPolloTotal = Object.values(inventario.presasPorPollo).reduce((sum, cant) => sum + (cant || 0), 0);
+            if (presasPorPolloTotal === 0) return inventario.pollosEnteros || 0;
+            const pollosCompletos = Math.floor(totalPresas / presasPorPolloTotal);
+            const presasSobrantes = totalPresas % presasPorPolloTotal;
+             return pollosCompletos + (presasSobrantes > 0 ? 1 : 0);
+        }
+
+        function actualizarUI() {
+            // Inventario
+            listaPresasEl.innerHTML = '';
+            if (inventario.presas && Object.keys(inventario.presas).length > 0) {
+                 Object.entries(inventario.presas).forEach(([presa, cantidad]) => {
+                    listaPresasEl.innerHTML += `<li class="flex items-center"><i data-lucide="drumstick" class="icon text-orange-500 w-4 h-4"></i> ${presa.charAt(0).toUpperCase() + presa.slice(1)}: <span class="font-semibold ml-1">${cantidad || 0}</span></li>`;
+                });
+            } else { listaPresasEl.innerHTML = '<li class="italic text-gray-400">No hay presas.</li>'; }
+            pollosEquivalentesEl.textContent = calcularPollosEquivalentes();
+
+            listaProductosEl.innerHTML = '';
+            if (inventario.productos && Object.keys(inventario.productos).length > 0) {
+                 const productosConStock = Object.entries(inventario.productos).filter(([_, cant]) => cant > 0);
+                 if (productosConStock.length > 0) {
+                    productosConStock.forEach(([nombre, cantidad]) => {
+                        listaProductosEl.innerHTML += `<li class="flex items-center"><i data-lucide="package" class="icon text-blue-500 w-4 h-4"></i> ${nombre}: <span class="font-semibold ml-1">${cantidad}</span></li>`;
+                    });
+                 } else { listaProductosEl.innerHTML = '<li class="italic text-gray-400">No hay productos con stock.</li>'; }
+            } else { listaProductosEl.innerHTML = '<li class="italic text-gray-400">No hay productos.</li>'; }
+
+            actualizarGrafico();
+
+            // Historial
+            historialMovimientosEl.innerHTML = '';
+            if (inventario.history && inventario.history.length > 0) {
+                inventario.history.forEach(mov => {
+                    const li = document.createElement('li');
+                    li.textContent = mov;
+                    if (mov.includes('ENTRADA') || mov.includes('Agregado')) li.classList.add('text-green-700');
+                    else if (mov.includes('VENTA') || mov.includes('Vendido')) li.classList.add('text-blue-700');
+                    else if (mov.includes('ELIMINACIÓN') || mov.includes('Eliminado')) li.classList.add('text-red-700');
+                    else if (mov.includes('LOGIN')) li.classList.add('text-purple-700');
+                    else if (mov.includes('LOGOUT')) li.classList.add('text-gray-500');
+                    else if (mov.includes('CARRITO')) li.classList.add('text-cyan-700');
+                    else if (mov.includes('Error')) li.classList.add('text-red-700', 'font-semibold');
+                    historialMovimientosEl.appendChild(li);
+                });
+            } else { historialMovimientosEl.innerHTML = '<li class="italic text-gray-400">No hay movimientos.</li>'; }
+
+            actualizarSelectProductos();
+            llenarSelectCombos();
+            actualizarDisplayCarrito();
+
+            lucide.createIcons();
+        }
+
+        function actualizarSelectProductos() {
+             const productoNombres = inventario.productos ? Object.keys(inventario.productos).filter(p => inventario.productos[p] > 0) : [];
+             const noProdOpt = '<option value="" disabled selected>No hay productos</option>';
+             productoVentaSelectEl.innerHTML = '<option value="" disabled selected>Seleccione...</option>';
+             productoEliminarSelectEl.innerHTML = '<option value="" disabled selected>Seleccione...</option>';
+
+             if (productoNombres.length > 0) {
+                 productoNombres.forEach(nombre => {
+                     const option = `<option value="${nombre}">${nombre} (${inventario.productos[nombre]})</option>`;
+                     productoVentaSelectEl.innerHTML += option;
+                     productoEliminarSelectEl.innerHTML += option;
+                 });
+             } else {
+                  productoVentaSelectEl.innerHTML = noProdOpt;
+                  productoEliminarSelectEl.innerHTML = noProdOpt;
+              }
+        }
+
+        function llenarSelectCombos() {
+            if (inventario.combos && Object.keys(inventario.combos).length > 0) {
+                 if (comboSelectEl.options.length <= 1 || !comboSelectEl.dataset.filled) {
+                     comboSelectEl.innerHTML = '<option value="" disabled selected>Seleccione combo...</option>';
+                     Object.keys(inventario.combos).forEach(comboKey => {
+                         const displayName = nombresCombosDisplay[comboKey] || comboKey;
+                         comboSelectEl.innerHTML += `<option value="${comboKey}">${displayName}</option>`;
+                     });
+                     comboSelectEl.dataset.filled = "true";
+                 }
+            } else {
+                 comboSelectEl.innerHTML = '<option value="" disabled selected>No hay combos</option>';
+                 comboSelectEl.dataset.filled = "false";
+            }
+        }
+
+        // --- Lógica de Login/Logout ---
+        async function handleLogin(event) {
+            event.preventDefault();
+            const username = document.getElementById('username').value.trim(); // Asegurar referencia correcta
+            const password = document.getElementById('password').value; // Asegurar referencia correcta
+            const loginErrorEl = document.getElementById('login-error'); // Asegurar referencia correcta
+            loginErrorEl.classList.add('hidden');
+
+            try {
+                // --- CAMBIO: Usar API_BASE_URL ---
+                const response = await fetch(`${API_BASE_URL}/login`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    currentUserRole = result.role; currentUsername = username;
+                    loginScreenEl.classList.add('hidden'); mainAppEl.classList.remove('hidden');
+                    userInfoEl.textContent = `Usuario: ${currentUsername} (${currentUserRole})`;
+                    await cargarDatosIniciales();
+                    setupUIForRole();
+                    mostrarFeedback(`Bienvenido ${currentUsername}! Rol: ${currentUserRole}`, 'success');
+                } else {
+                    mostrarFeedback(result.message || 'Credenciales incorrectas.', 'error');
+                    loginErrorEl.textContent = result.message || 'Credenciales incorrectas.';
+                    loginErrorEl.classList.remove('hidden'); document.getElementById('password').value = '';
+                }
+            } catch (error) {
+                console.error("Error en login:", error);
+                mostrarFeedback('Error de conexión.', 'error');
+                loginErrorEl.textContent = 'Error de conexión.'; loginErrorEl.classList.remove('hidden');
+            }
+        }
+
+        function handleLogout() {
+            currentUserRole = null; currentUsername = null;
+            mainAppEl.classList.add('hidden'); loginScreenEl.classList.remove('hidden');
+            document.getElementById('username').value = ''; document.getElementById('password').value = ''; // Limpiar campos
+            document.getElementById('login-error').classList.add('hidden');
+            userInfoEl.textContent = '';
+            carrito = [];
+            inventario = { presas: {}, productos: {}, historial: [], combos: {}, presasPorPollo: {} };
+            actualizarUI();
+            if (inventoryChart) { inventoryChart.destroy(); inventoryChart = null; }
+        }
+
+        function setupUIForRole() {
+             const isAdmin = currentUserRole === 'admin';
+             const isVendedor = currentUserRole === 'vendedor';
+             tabButtons.forEach(button => {
+                 const tabName = button.dataset.tab;
+                 const allowed = isAdmin || (isVendedor && tabName === 'venta');
+                 button.disabled = !allowed;
+                 button.style.display = allowed ? 'inline-flex' : 'none';
+                 button.classList.toggle('disabled', !allowed);
+             });
+             carrito = [];
+             llenarSelectCombos();
+             actualizarUI();
+             if (isAdmin) showTab('inventario'); else if (isVendedor) showTab('venta');
+        }
+
+        // --- Cargar Datos Iniciales del Backend ---
+        async function cargarDatosIniciales() {
+            console.log("Cargando datos iniciales...");
+            try {
+                 // --- CAMBIO: Usar API_BASE_URL ---
+                const [invResponse, histResponse] = await Promise.all([
+                    fetch(`${API_BASE_URL}/api/inventory`),
+                    fetch(`${API_BASE_URL}/api/history`)
+                ]);
+                if (!invResponse.ok) throw new Error(`Inv: ${invResponse.statusText}`);
+                if (!histResponse.ok) throw new Error(`Hist: ${histResponse.statusText}`);
+                const invData = await invResponse.json();
+                const histData = await histResponse.json();
+                inventario.pollosEnteros = invData.inventory?.pollosEnteros || 0;
+                inventario.presas = invData.inventory?.presas || {};
+                inventario.productos = invData.inventory?.productos || {};
+                inventario.combos = invData.combos || {};
+                inventario.presasPorPollo = invData.presasPorPollo || {};
+                inventario.history = histData.history || [];
+                console.log("Datos cargados.");
+            } catch (error) {
+                console.error("Error cargando datos:", error);
+                mostrarFeedback('Error al cargar datos del servidor.', 'error');
+                inventario = { pollosEnteros: 0, presas: {}, productos: {}, historial: [], combos: {}, presasPorPollo: {} };
+            }
+        }
+
+        // --- Lógica de Pestañas ---
+        function showTab(tabId) { /* ... (sin cambios) ... */ }
+
+        // --- Lógica del Carrito (Frontend) ---
+        function agregarComboAlCarrito() { /* ... (sin cambios) ... */ }
+        function agregarPresasAlCarrito() { /* ... (sin cambios) ... */ }
+        function agregarProductoAlCarrito() { /* ... (sin cambios) ... */ }
+        function removerDelCarrito(index) { /* ... (sin cambios) ... */ }
+        function actualizarDisplayCarrito() { /* ... (sin cambios) ... */ }
+
+        // --- ACCIONES CONECTADAS AL BACKEND ---
+
+        async function procesarVentaCarrito() {
+            if (carrito.length === 0) { mostrarFeedback("Carrito vacío.", "error"); return; }
+            venderCarritoBtn.disabled = true;
+            try {
+                 // --- CAMBIO: Usar API_BASE_URL ---
+                const response = await fetch(`${API_BASE_URL}/api/sell`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cart: carrito })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    mostrarFeedback('Venta procesada!', 'success');
+                    carrito = [];
+                    await cargarDatosIniciales(); actualizarUI();
+                } else { mostrarFeedback(result.message || 'Error al vender.', 'error'); }
+            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
+            finally { venderCarritoBtn.disabled = carrito.length === 0; }
+        }
+
+        async function agregarPollos() {
+            const cantidadEl = document.getElementById('add-pollos-cantidad');
+            const cantidad = parseInt(cantidadEl.value);
+            if (isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Cantidad inválida.', 'error'); return; }
+            try {
+                 // --- CAMBIO: Usar API_BASE_URL ---
+                const response = await fetch(`${API_BASE_URL}/api/add/pollos`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ quantity: cantidad })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    mostrarFeedback(result.message || 'Pollos agregados.', 'success');
+                    cantidadEl.value = '';
+                    await cargarDatosIniciales(); actualizarUI();
+                } else { mostrarFeedback(result.message || 'Error.', 'error'); }
+            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
+        }
+
+        async function agregarPresas() {
+             const tipo = document.getElementById('add-presas-tipo').value;
+             const cantidad = parseInt(document.getElementById('add-presas-cantidad').value);
+             if (!tipo || isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Seleccione tipo y cantidad.', 'error'); return; }
+             try {
+                 // --- CAMBIO: Usar API_BASE_URL ---
+                const response = await fetch(`${API_BASE_URL}/api/add/presas`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: tipo, quantity: cantidad })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    mostrarFeedback(result.message || 'Presas agregadas.', 'success');
+                    document.getElementById('add-presas-cantidad').value = '';
+                    await cargarDatosIniciales(); actualizarUI();
+                } else { mostrarFeedback(result.message || 'Error.', 'error'); }
+            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
+        }
+
+        async function agregarProducto() {
+            const nombreEl = document.getElementById('add-producto-nombre');
+            const cantidadEl = document.getElementById('add-producto-cantidad');
+            let nombre = nombreEl.value.trim(); const cantidad = parseInt(cantidadEl.value);
+            if (!nombre || isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Ingrese nombre y cantidad.', 'error'); return; }
+            try {
+                 // --- CAMBIO: Usar API_BASE_URL ---
+                const response = await fetch(`${API_BASE_URL}/api/add/producto`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: nombre, quantity: cantidad })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    mostrarFeedback(result.message || 'Producto agregado.', 'success');
+                    nombreEl.value = ''; cantidadEl.value = '';
+                    await cargarDatosIniciales(); actualizarUI();
+                } else { mostrarFeedback(result.message || 'Error.', 'error'); }
+            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
+        }
+
+        async function eliminarPollos() {
+             const cantidad = parseInt(document.getElementById('remove-pollos-cantidad').value);
+             if (isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Ingrese cantidad.', 'error'); return; }
+             if (!confirm(`¿Seguro eliminar ${cantidad} pollos (merma)?`)) return;
+             try {
+                 // --- CAMBIO: Usar API_BASE_URL ---
+                const response = await fetch(`${API_BASE_URL}/api/remove/pollos`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ quantity: cantidad })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    mostrarFeedback(result.message || 'Pollos eliminados.', 'success');
+                    document.getElementById('remove-pollos-cantidad').value = '';
+                    await cargarDatosIniciales(); actualizarUI();
+                } else { mostrarFeedback(result.message || 'Error.', 'error'); }
+            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
+        }
+        async function eliminarPresas() {
+             const tipo = document.getElementById('remove-presas-tipo').value;
+             const cantidad = parseInt(document.getElementById('remove-presas-cantidad').value);
+             if (!tipo || isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Seleccione tipo y cantidad.', 'error'); return; }
+             if (!confirm(`¿Seguro eliminar ${cantidad} ${tipo}(s) (merma)?`)) return;
+             try {
+                 // --- CAMBIO: Usar API_BASE_URL ---
+                const response = await fetch(`${API_BASE_URL}/api/remove/presas`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: tipo, quantity: cantidad })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    mostrarFeedback(result.message || 'Presas eliminadas.', 'success');
+                    document.getElementById('remove-presas-cantidad').value = '';
+                    await cargarDatosIniciales(); actualizarUI();
+                } else { mostrarFeedback(result.message || 'Error.', 'error'); }
+            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
+        }
+        async function eliminarProducto() {
+            const nombre = document.getElementById('remove-producto-nombre').value;
+            const cantidad = parseInt(document.getElementById('remove-producto-cantidad').value);
+            if (!nombre || isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Seleccione producto y cantidad.', 'error'); return; }
+             if (!confirm(`¿Seguro eliminar ${cantidad} '${nombre}' (merma)?`)) return;
+             try {
+                 // --- CAMBIO: Usar API_BASE_URL ---
+                const response = await fetch(`${API_BASE_URL}/api/remove/producto`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: nombre, quantity: cantidad })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    mostrarFeedback(result.message || 'Producto eliminado.', 'success');
+                    document.getElementById('remove-producto-nombre').value = ''; document.getElementById('remove-producto-cantidad').value = '';
+                    await cargarDatosIniciales(); actualizarUI();
+                } else { mostrarFeedback(result.message || 'Error.', 'error'); }
+            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
+        }
+
+        // --- Gráfico ---
+         function inicializarGrafico() { /* ... (igual que antes) ... */ }
+        function actualizarGrafico() { /* ... (igual que antes) ... */ }
+
+        // --- Inicialización General ---
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            loginScreenEl.classList.remove('hidden');
+            mainAppEl.classList.add('hidden');
+        });
+
+    </script>
+
+</body>
+</html>
+```
+
+**Explicación de los Cambios en `index.html`:**
+
+* **`API_BASE_URL`:** Se añadió una constante `API_BASE_URL` al principio del script. **Aquí es donde pondrás la URL pública de tu backend una vez que lo despliegues**. Si estás corriendo el backend localmente, puedes dejarla vacía (`""`) para usar rutas relativas.
+* **Llamadas `fetch` Actualizadas:** Todas las funciones que interactúan con el backend (`handleLogin`, `cargarDatosIniciales`, `procesarVentaCarrito`, `agregarPollos`, `agregarPresas`, `agregarProducto`, `eliminarPollos`, `eliminarPresas`, `eliminarProducto`) ahora usan `fetch(\`${API_BASE_URL}/ruta/api\`, ...)` para construir la URL completa.
+
+**Siguientes Pasos:**
+
+1.  **Elegir Proveedor de Hosting para Backend:** Decide dónde quieres desplegar `app.py`. **Render.com** suele ser una buena opción gratuita y relativamente sencilla para empezar con aplicaciones Flask/Python. PythonAnywhere es otra alternativa popular.
+2.  **Desplegar el Backend:** Sigue las instrucciones del proveedor elegido para subir tu código (`app.py`, `data.json`, `requirements.txt`) y ponerlo en marcha. Necesitarás indicarles que usen `gunicorn app:app` como comando de inicio.
+3.  **Obtener la URL Pública del Backend:** Una vez desplegado, el proveedor te dará una URL pública (ej: `https://mi-inventario-pollo.onrender.com`).
+4.  **Actualizar `API_BASE_URL` en `index.html`:** Edita el archivo `index.html` (el que subirás a Netlify) y pon la URL pública de tu backend en la constante `API_BASE_URL`.
+5.  **Desplegar el Frontend en Netlify:** Sube tu carpeta `templates` (o solo el archivo `index.html` modificado) a Netlify.
+
+¿Te gustaría que nos enfoquemos en los pasos para desplegar el backend en **Render.com** como ejemp
