@@ -30,6 +30,7 @@
         .cart-item:last-child { border-bottom: none; }
         .cart-remove-btn { background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.25rem; }
         .cart-remove-btn:hover { color: #dc2626; }
+        .cart-total { text-align: right; font-size: 1.1rem; font-weight: bold; margin-top: 1rem; padding-top: 0.5rem; border-top: 1px solid #ccc; }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -50,9 +51,11 @@
              <div class="flex items-center space-x-4"> <span id="user-info" class="text-sm text-gray-600"></span> <button id="logout-button" onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap"> <i data-lucide="log-out" class="w-4 h-4 mr-1"></i> Salir </button> </div>
         </header>
 
-        <div class="mb-6 border-b border-gray-200 bg-white rounded-lg shadow-sm">
+        <div class="mb-6 flex justify-between items-center border-b border-gray-200 bg-white rounded-lg shadow-sm pr-4">
             <nav id="tabs-nav" class="-mb-px flex space-x-4 px-4 overflow-x-auto" aria-label="Tabs"> <button class="tab-button" onclick="showTab('venta')" data-tab="venta"> <i data-lucide="shopping-cart" class="icon"></i>Ventas </button> <button class="tab-button" onclick="showTab('inventario')" data-tab="inventario"> <i data-lucide="clipboard-list" class="icon"></i>Inventario </button> <button class="tab-button" onclick="showTab('gestion')" data-tab="gestion"> <i data-lucide="settings" class="icon"></i>Gestión </button> <button class="tab-button" onclick="showTab('historial')" data-tab="historial"> <i data-lucide="history" class="icon"></i>Historial </button> </nav>
+            <button id="refresh-button" onclick="refreshData()" title="Actualizar Datos" class="ml-4 p-2 text-gray-500 hover:text-blue-600 hover:bg-gray-100 rounded-full"> <i data-lucide="refresh-cw" class="w-5 h-5"></i> </button>
         </div>
+
 
         <div id="tab-content-container">
             <div id="tab-venta" class="tab-content">
@@ -68,7 +71,9 @@
                         </div>
                     </div>
                     <div class="lg:col-span-1">
-                         <div class="card sticky top-4"> <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center"> <i data-lucide="shopping-bag" class="icon text-green-600"></i>Carrito de Venta </h2> <div id="carrito-display" class="mb-4 min-h-[100px] max-h-[40vh] overflow-y-auto"> <ul id="carrito-lista" class="space-y-1 text-sm"> <li class="italic text-gray-400">El carrito está vacío.</li> </ul> </div> <button id="vender-carrito-btn" onclick="procesarVentaCarrito()" class="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium flex items-center justify-center" disabled> <i data-lucide="receipt" class="w-4 h-4 mr-1"></i> Vender Carrito (<span id="carrito-total-items">0</span>) </button> </div>
+                         <div class="card sticky top-4"> <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center"> <i data-lucide="shopping-bag" class="icon text-green-600"></i>Carrito de Venta </h2> <div id="carrito-display" class="mb-4 min-h-[100px] max-h-[40vh] overflow-y-auto"> <ul id="carrito-lista" class="space-y-1 text-sm"> <li class="italic text-gray-400">El carrito está vacío.</li> </ul> </div>
+                         <div id="carrito-total" class="cart-total">Total: $0.00</div>
+                         <button id="vender-carrito-btn" onclick="procesarVentaCarrito()" class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium flex items-center justify-center" disabled> <i data-lucide="receipt" class="w-4 h-4 mr-1"></i> Vender Carrito (<span id="carrito-total-items">0</span>) </button> </div>
                     </div>
                 </div>
             </div>
@@ -84,7 +89,14 @@
                         <div class="space-y-4">
                             <div> <label for="add-pollos-cantidad" class="block text-sm font-medium text-gray-700">Pollos Enteros:</label> <div class="flex space-x-2 mt-1"> <input type="number" id="add-pollos-cantidad" name="add-pollos" min="1" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cantidad"> <button onclick="agregarPollos()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Agregar </button> </div> </div>
                             <div> <label for="add-presas-tipo" class="block text-sm font-medium text-gray-700">Presas Individuales:</label> <div class="flex space-x-2 mt-1"> <select id="add-presas-tipo" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"> <option value="pechuga">Pechuga</option> <option value="muslo">Muslo</option> <option value="ala">Ala</option> <option value="pierna">Pierna</option> </select> <input type="number" id="add-presas-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant."> <button onclick="agregarPresas()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Add </button> </div> </div>
-                            <div> <label for="add-producto-nombre" class="block text-sm font-medium text-gray-700">Producto Adicional:</label> <div class="flex space-x-2 mt-1"> <input type="text" id="add-producto-nombre" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Nombre (Ej: Papas)"> <input type="number" id="add-producto-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant."> <button onclick="agregarProducto()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Add </button> </div> </div>
+                            <div> <label for="add-producto-nombre" class="block text-sm font-medium text-gray-700">Producto Adicional:</label>
+                                <div class="flex flex-wrap sm:flex-nowrap space-y-2 sm:space-y-0 sm:space-x-2 mt-1">
+                                    <input type="text" id="add-producto-nombre" class="block w-full sm:w-auto flex-grow rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Nombre">
+                                    <input type="number" id="add-producto-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant.">
+                                    <input type="number" id="add-producto-precio" min="0" step="0.01" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Precio ($)">
+                                    <button onclick="agregarProducto()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Add </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="card">
@@ -107,11 +119,7 @@
 
     </div> <script>
         // --- CONFIGURACIÓN ---
-        // --- CAMBIO: Define la URL base de tu API backend ---
-        // Si corres localmente: "http://127.0.0.1:5000"
-        // Si despliegas el backend (ej. en Render): "https://tu-app-inventario.onrender.com"
-        const API_BASE_URL = ""; // Deja vacío para usar rutas relativas si corres todo junto localmente
-                                 // o pon la URL completa de tu backend desplegado.
+        const API_BASE_URL = "https://inventario-asadero-backend.onrender.com"; // ¡Asegúrate que sea tu URL de Railway!
 
         // --- ESTADO GLOBAL (CLIENT-SIDE) ---
         let inventario = { pollosEnteros: 0, presas: {}, productos: {}, history: [], combos: {}, presasPorPollo: {} };
@@ -122,6 +130,7 @@
         let inventoryChart = null;
 
         // --- Referencias DOM ---
+        // ... (igual que antes, añadir referencia a input de precio) ...
         const loginScreenEl = document.getElementById('login-screen');
         const mainAppEl = document.getElementById('main-app');
         const userInfoEl = document.getElementById('user-info');
@@ -139,36 +148,40 @@
         const carritoListaEl = document.getElementById('carrito-lista');
         const venderCarritoBtn = document.getElementById('vender-carrito-btn');
         const carritoTotalItemsEl = document.getElementById('carrito-total-items');
+        const carritoTotalPrecioEl = document.getElementById('carrito-total'); // <-- Para mostrar total $
+        const refreshButton = document.getElementById('refresh-button');
+        const addProductoPrecioEl = document.getElementById('add-producto-precio'); // <-- Input de precio
 
 
         // --- Lógica de Utilidad y UI General ---
-        function mostrarFeedback(mensaje, tipo = 'success') { /* ... (igual que antes) ... */ }
-        function calcularPollosEquivalentes() { /* ... (igual que antes) ... */ }
-        function actualizarUI() { /* ... (igual que antes) ... */ }
-        function actualizarSelectProductos() { /* ... (igual que antes) ... */ }
-        function llenarSelectCombos() { /* ... (igual que antes) ... */ }
-        async function handleLogin(event) { /* ... (Actualizada con API_BASE_URL) ... */ }
-        function handleLogout() { /* ... (igual que antes) ... */ }
-        function setupUIForRole() { /* ... (igual que antes) ... */ }
-        async function cargarDatosIniciales() { /* ... (Actualizada con API_BASE_URL) ... */ }
-        function showTab(tabId) { /* ... (igual que antes) ... */ }
-        function agregarComboAlCarrito() { /* ... (igual que antes) ... */ }
-        function agregarPresasAlCarrito() { /* ... (igual que antes) ... */ }
-        function agregarProductoAlCarrito() { /* ... (igual que antes) ... */ }
-        function removerDelCarrito(index) { /* ... (igual que antes) ... */ }
-        function actualizarDisplayCarrito() { /* ... (igual que antes) ... */ }
-        async function procesarVentaCarrito() { /* ... (Actualizada con API_BASE_URL) ... */ }
-        async function agregarPollos() { /* ... (Actualizada con API_BASE_URL) ... */ }
-        async function agregarPresas() { /* ... (Actualizada con API_BASE_URL) ... */ }
-        async function agregarProducto() { /* ... (Actualizada con API_BASE_URL) ... */ }
-        async function eliminarPollos() { /* ... (Actualizada con API_BASE_URL) ... */ }
-        async function eliminarPresas() { /* ... (Actualizada con API_BASE_URL) ... */ }
-        async function eliminarProducto() { /* ... (Actualizada con API_BASE_URL) ... */ }
-        function inicializarGrafico() { /* ... (igual que antes) ... */ }
-        function actualizarGrafico() { /* ... (igual que antes) ... */ }
+        function mostrarFeedback(mensaje, tipo = 'success') { /* ... (sin cambios) ... */ }
+        function calcularPollosEquivalentes() { /* ... (sin cambios) ... */ }
+        function actualizarUI() { /* ... (sin cambios) ... */ }
+        function actualizarSelectProductos() { /* ... (Modificada para mostrar precio) ... */ }
+        function llenarSelectCombos() { /* ... (Modificada para mostrar precio) ... */ }
+        async function handleLogin(event) { /* ... (sin cambios) ... */ }
+        function handleLogout() { /* ... (sin cambios) ... */ }
+        function setupUIForRole() { /* ... (sin cambios) ... */ }
+        async function cargarDatosIniciales() { /* ... (sin cambios) ... */ }
+        function showTab(tabId) { /* ... (sin cambios) ... */ }
+        function agregarComboAlCarrito() { /* ... (sin cambios) ... */ }
+        function agregarPresasAlCarrito() { /* ... (sin cambios) ... */ }
+        function agregarProductoAlCarrito() { /* ... (sin cambios) ... */ }
+        function removerDelCarrito(index) { /* ... (sin cambios) ... */ }
+        function actualizarDisplayCarrito() { /* ... (Modificada para mostrar precios y total) ... */ }
+        async function procesarVentaCarrito() { /* ... (sin cambios) ... */ }
+        async function agregarPollos() { /* ... (sin cambios) ... */ }
+        async function agregarPresas() { /* ... (sin cambios) ... */ }
+        async function agregarProducto() { /* ... (Modificada para enviar precio) ... */ }
+        async function eliminarPollos() { /* ... (sin cambios) ... */ }
+        async function eliminarPresas() { /* ... (sin cambios) ... */ }
+        async function eliminarProducto() { /* ... (sin cambios) ... */ }
+        async function refreshData() { /* ... (sin cambios) ... */ }
+        function inicializarGrafico() { /* ... (sin cambios) ... */ }
+        function actualizarGrafico() { /* ... (sin cambios) ... */ }
 
 
-        // --- Implementaciones de funciones (Copiadas/Actualizadas) ---
+        // --- Implementaciones de funciones (Copiadas/Actualizadas para Precios) ---
 
         function mostrarFeedback(mensaje, tipo = 'success') {
             feedbackZoneEl.textContent = mensaje;
@@ -192,62 +205,90 @@
         }
 
         function actualizarUI() {
-            // Inventario
-            listaPresasEl.innerHTML = '';
-            if (inventario.presas && Object.keys(inventario.presas).length > 0) {
-                 Object.entries(inventario.presas).forEach(([presa, cantidad]) => {
-                    listaPresasEl.innerHTML += `<li class="flex items-center"><i data-lucide="drumstick" class="icon text-orange-500 w-4 h-4"></i> ${presa.charAt(0).toUpperCase() + presa.slice(1)}: <span class="font-semibold ml-1">${cantidad || 0}</span></li>`;
-                });
-            } else { listaPresasEl.innerHTML = '<li class="italic text-gray-400">No hay presas.</li>'; }
-            pollosEquivalentesEl.textContent = calcularPollosEquivalentes();
+            console.log("--- Iniciando actualizarUI ---");
+            console.log("Datos de inventario actuales:", JSON.parse(JSON.stringify(inventario)));
 
-            listaProductosEl.innerHTML = '';
-            if (inventario.productos && Object.keys(inventario.productos).length > 0) {
-                 const productosConStock = Object.entries(inventario.productos).filter(([_, cant]) => cant > 0);
-                 if (productosConStock.length > 0) {
-                    productosConStock.forEach(([nombre, cantidad]) => {
-                        listaProductosEl.innerHTML += `<li class="flex items-center"><i data-lucide="package" class="icon text-blue-500 w-4 h-4"></i> ${nombre}: <span class="font-semibold ml-1">${cantidad}</span></li>`;
+            try {
+                // Inventario - Presas
+                console.log("Actualizando lista de presas...");
+                listaPresasEl.innerHTML = '';
+                if (inventario.presas && Object.keys(inventario.presas).length > 0) {
+                    Object.entries(inventario.presas).forEach(([presa, cantidad]) => {
+                        const li = document.createElement('li');
+                        li.className = "flex items-center";
+                        li.innerHTML = `<i data-lucide="drumstick" class="icon text-orange-500 w-4 h-4"></i> ${document.createTextNode(presa.charAt(0).toUpperCase() + presa.slice(1) + ': ').textContent}<span class="font-semibold ml-1">${cantidad || 0}</span>`;
+                        listaPresasEl.appendChild(li);
                     });
-                 } else { listaProductosEl.innerHTML = '<li class="italic text-gray-400">No hay productos con stock.</li>'; }
-            } else { listaProductosEl.innerHTML = '<li class="italic text-gray-400">No hay productos.</li>'; }
+                } else { listaPresasEl.innerHTML = '<li class="italic text-gray-400">No hay presas.</li>'; }
+                pollosEquivalentesEl.textContent = calcularPollosEquivalentes();
 
-            actualizarGrafico();
+                // Inventario - Productos (Mostrar precio aquí también)
+                console.log("Actualizando lista de productos...");
+                listaProductosEl.innerHTML = '';
+                if (inventario.productos && Object.keys(inventario.productos).length > 0) {
+                    const productosConStock = Object.entries(inventario.productos).filter(([_, data]) => data.cantidad > 0);
+                    if (productosConStock.length > 0) {
+                        productosConStock.forEach(([nombre, data]) => {
+                            const li = document.createElement('li');
+                            li.className = "flex items-center";
+                            const precioFormateado = (data.precio || 0).toFixed(2); // Formatear precio
+                            li.innerHTML = `<i data-lucide="package" class="icon text-blue-500 w-4 h-4"></i> ${document.createTextNode(nombre + ': ').textContent}<span class="font-semibold ml-1">${data.cantidad}</span> <span class="text-xs text-gray-500 ml-2">($${precioFormateado})</span>`;
+                            listaProductosEl.appendChild(li);
+                        });
+                    } else { listaProductosEl.innerHTML = '<li class="italic text-gray-400">No hay productos con stock.</li>'; }
+                } else { listaProductosEl.innerHTML = '<li class="italic text-gray-400">No hay productos.</li>'; }
 
-            // Historial
-            historialMovimientosEl.innerHTML = '';
-            if (inventario.history && inventario.history.length > 0) {
-                inventario.history.forEach(mov => {
-                    const li = document.createElement('li');
-                    li.textContent = mov;
-                    if (mov.includes('ENTRADA') || mov.includes('Agregado')) li.classList.add('text-green-700');
-                    else if (mov.includes('VENTA') || mov.includes('Vendido')) li.classList.add('text-blue-700');
-                    else if (mov.includes('ELIMINACIÓN') || mov.includes('Eliminado')) li.classList.add('text-red-700');
-                    else if (mov.includes('LOGIN')) li.classList.add('text-purple-700');
-                    else if (mov.includes('LOGOUT')) li.classList.add('text-gray-500');
-                    else if (mov.includes('CARRITO')) li.classList.add('text-cyan-700');
-                    else if (mov.includes('Error')) li.classList.add('text-red-700', 'font-semibold');
-                    historialMovimientosEl.appendChild(li);
-                });
-            } else { historialMovimientosEl.innerHTML = '<li class="italic text-gray-400">No hay movimientos.</li>'; }
+                console.log("Llamando a actualizarGrafico...");
+                actualizarGrafico();
 
-            actualizarSelectProductos();
-            llenarSelectCombos();
-            actualizarDisplayCarrito();
+                console.log("Actualizando historial...");
+                historialMovimientosEl.innerHTML = '';
+                if (inventario.history && inventario.history.length > 0) {
+                    inventario.history.forEach(mov => {
+                        const li = document.createElement('li'); li.textContent = mov;
+                        if (mov.includes('ENTRADA')) li.classList.add('text-green-700');
+                        else if (mov.includes('VENTA')) li.classList.add('text-blue-700');
+                        else if (mov.includes('ELIMINACIÓN')) li.classList.add('text-red-700');
+                        else if (mov.includes('LOGIN')) li.classList.add('text-purple-700');
+                        else if (mov.includes('LOGOUT')) li.classList.add('text-gray-500');
+                        else if (mov.includes('CARRITO')) li.classList.add('text-cyan-700');
+                        else if (mov.includes('Error')) li.classList.add('text-red-700', 'font-semibold');
+                        historialMovimientosEl.appendChild(li);
+                    });
+                } else { historialMovimientosEl.innerHTML = '<li class="italic text-gray-400">No hay movimientos.</li>'; }
 
-            lucide.createIcons();
+                console.log("Actualizando selects y carrito...");
+                actualizarSelectProductos();
+                llenarSelectCombos();
+                actualizarDisplayCarrito();
+
+                console.log("Renderizando iconos Lucide...");
+                lucide.createIcons();
+
+            } catch (error) {
+                 console.error("¡ERROR DENTRO de actualizarUI!", error);
+                 listaPresasEl.innerHTML = '<li class="text-red-600 font-semibold">Error UI (presas)</li>';
+                 listaProductosEl.innerHTML = '<li class="text-red-600 font-semibold">Error UI (productos)</li>';
+                 historialMovimientosEl.innerHTML = '<li class="text-red-600 font-semibold">Error UI (historial)</li>';
+            }
+             console.log("--- Fin actualizarUI ---");
         }
 
+        // --- CAMBIO: Mostrar precio en selects ---
         function actualizarSelectProductos() {
-             const productoNombres = inventario.productos ? Object.keys(inventario.productos).filter(p => inventario.productos[p] > 0) : [];
+             const productoNombres = inventario.productos ? Object.keys(inventario.productos).filter(p => inventario.productos[p]?.cantidad > 0) : []; // Filtrar por cantidad
              const noProdOpt = '<option value="" disabled selected>No hay productos</option>';
              productoVentaSelectEl.innerHTML = '<option value="" disabled selected>Seleccione...</option>';
              productoEliminarSelectEl.innerHTML = '<option value="" disabled selected>Seleccione...</option>';
-
              if (productoNombres.length > 0) {
                  productoNombres.forEach(nombre => {
-                     const option = `<option value="${nombre}">${nombre} (${inventario.productos[nombre]})</option>`;
+                     const data = inventario.productos[nombre];
+                     const precioFormateado = (data.precio || 0).toFixed(2);
+                     // Mostrar nombre, stock y precio
+                     const optionText = `${nombre} (${data.cantidad}) - $${precioFormateado}`;
+                     const option = `<option value="${nombre}">${optionText}</option>`;
                      productoVentaSelectEl.innerHTML += option;
-                     productoEliminarSelectEl.innerHTML += option;
+                     productoEliminarSelectEl.innerHTML += option; // También en eliminar por consistencia
                  });
              } else {
                   productoVentaSelectEl.innerHTML = noProdOpt;
@@ -255,13 +296,18 @@
               }
         }
 
+        // --- CAMBIO: Mostrar precio en selects ---
         function llenarSelectCombos() {
             if (inventario.combos && Object.keys(inventario.combos).length > 0) {
                  if (comboSelectEl.options.length <= 1 || !comboSelectEl.dataset.filled) {
                      comboSelectEl.innerHTML = '<option value="" disabled selected>Seleccione combo...</option>';
                      Object.keys(inventario.combos).forEach(comboKey => {
+                         const comboData = inventario.combos[comboKey];
                          const displayName = nombresCombosDisplay[comboKey] || comboKey;
-                         comboSelectEl.innerHTML += `<option value="${comboKey}">${displayName}</option>`;
+                         const precioFormateado = (comboData.precio || 0).toFixed(2);
+                         // Mostrar nombre y precio
+                         const optionText = `${displayName} - $${precioFormateado}`;
+                         comboSelectEl.innerHTML += `<option value="${comboKey}">${optionText}</option>`;
                      });
                      comboSelectEl.dataset.filled = "true";
                  }
@@ -271,16 +317,116 @@
             }
         }
 
-        // --- Lógica de Login/Logout ---
-        async function handleLogin(event) {
-            event.preventDefault();
-            const username = document.getElementById('username').value.trim(); // Asegurar referencia correcta
-            const password = document.getElementById('password').value; // Asegurar referencia correcta
-            const loginErrorEl = document.getElementById('login-error'); // Asegurar referencia correcta
-            loginErrorEl.classList.add('hidden');
+        async function handleLogin(event) { /* ... (sin cambios) ... */ }
+        function handleLogout() { /* ... (sin cambios) ... */ }
+        function setupUIForRole() { /* ... (sin cambios) ... */ }
+        async function cargarDatosIniciales() { /* ... (sin cambios) ... */ }
+        function showTab(tabId) { /* ... (sin cambios) ... */ }
+        function agregarComboAlCarrito() { /* ... (sin cambios) ... */ }
+        function agregarPresasAlCarrito() { /* ... (sin cambios) ... */ }
+        function agregarProductoAlCarrito() { /* ... (sin cambios) ... */ }
+        function removerDelCarrito(index) { /* ... (sin cambios) ... */ }
+
+        // --- CAMBIO: Calcular y mostrar precios en carrito ---
+        function actualizarDisplayCarrito() {
+            carritoListaEl.innerHTML = '';
+            let totalCarrito = 0; // Inicializar total
+
+            if (carrito.length === 0) {
+                carritoListaEl.innerHTML = '<li class="italic text-gray-400">El carrito está vacío.</li>';
+                venderCarritoBtn.disabled = true;
+                carritoTotalItemsEl.textContent = 0;
+                carritoTotalPrecioEl.textContent = 'Total: $0.00'; // Mostrar total 0
+            } else {
+                carrito.forEach((item, index) => {
+                    const iconName = item.tipo === 'combo' ? 'package' : (item.tipo === 'presa' ? 'drumstick' : 'box');
+                    const nombreMostrar = item.display || item.nombre;
+                    let precioUnitario = 0;
+                    let subtotalItem = 0;
+
+                    // Obtener precio unitario
+                    if (item.tipo === 'combo' && inventario.combos[item.nombre]) {
+                        precioUnitario = inventario.combos[item.nombre].precio || 0;
+                    } else if (item.tipo === 'producto' && inventario.productos[item.nombre]) {
+                        precioUnitario = inventario.productos[item.nombre].precio || 0;
+                    }
+                    // Las presas individuales no tienen precio definido aquí
+
+                    subtotalItem = precioUnitario * item.cantidad;
+                    totalCarrito += subtotalItem; // Sumar al total general
+
+                    carritoListaEl.innerHTML += `
+                        <li class="cart-item">
+                            <span>
+                                <i data-lucide="${iconName}" class="icon w-4 h-4 text-gray-600"></i>
+                                ${item.cantidad} x ${nombreMostrar}
+                                <span class="text-xs text-gray-500 ml-1">($${precioUnitario.toFixed(2)} c/u)</span>
+                            </span>
+                            <span class="font-medium">$${subtotalItem.toFixed(2)}</span> <button onclick="removerDelCarrito(${index})" class="cart-remove-btn" title="Eliminar">
+                                <i data-lucide="x-circle" class="w-4 h-4"></i>
+                            </button>
+                        </li>`;
+                });
+                venderCarritoBtn.disabled = false;
+                carritoTotalItemsEl.textContent = carrito.length;
+                carritoTotalPrecioEl.textContent = `Total: $${totalCarrito.toFixed(2)}`; // Mostrar total formateado
+                 lucide.createIcons();
+            }
+        }
+
+
+        async function procesarVentaCarrito() { /* ... (sin cambios lógicos, el backend ya calcula el total para el log) ... */ }
+
+        // --- CAMBIO: Enviar precio al agregar producto ---
+        async function agregarProducto() {
+            const nombreEl = document.getElementById('add-producto-nombre');
+            const cantidadEl = document.getElementById('add-producto-cantidad');
+            const precioEl = document.getElementById('add-producto-precio'); // Referencia al input de precio
+            let nombre = nombreEl.value.trim();
+            const cantidad = parseInt(cantidadEl.value);
+            const precio = precioEl.value; // Obtener valor del precio (como string)
+
+            // Validar también el precio
+            if (!nombre || isNaN(cantidad) || cantidad <= 0 || precio === '' || parseFloat(precio) < 0) {
+                mostrarFeedback('Ingrese nombre, cantidad positiva y precio válido (0 o mayor).', 'error');
+                return;
+            }
 
             try {
-                // --- CAMBIO: Usar API_BASE_URL ---
+                const response = await fetch(`${API_BASE_URL}/api/add/producto`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    // Enviar nombre, cantidad Y PRECIO
+                    body: JSON.stringify({ name: nombre, quantity: cantidad, price: parseFloat(precio) })
+                });
+                const result = await response.json();
+                if (response.ok && result.success) {
+                    mostrarFeedback(result.message || 'Producto agregado/actualizado.', 'success');
+                    nombreEl.value = ''; cantidadEl.value = ''; precioEl.value = ''; // Limpiar los 3 campos
+                    await cargarDatosIniciales(); actualizarUI();
+                } else { mostrarFeedback(result.message || 'Error.', 'error'); }
+            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
+        }
+
+        async function agregarPollos() { /* ... (sin cambios) ... */ }
+        async function agregarPresas() { /* ... (sin cambios) ... */ }
+        async function eliminarPollos() { /* ... (sin cambios) ... */ }
+        async function eliminarPresas() { /* ... (sin cambios) ... */ }
+        async function eliminarProducto() { /* ... (sin cambios) ... */ }
+        async function refreshData() { /* ... (sin cambios) ... */ }
+        function inicializarGrafico() { /* ... (sin cambios) ... */ }
+        function actualizarGrafico() { /* ... (sin cambios) ... */ }
+
+
+        // --- Implementaciones de funciones restantes (copiadas para completitud) ---
+        // (Incluir aquí las implementaciones completas de las funciones marcadas como "sin cambios" si es necesario
+        //  asegurándose de que usan API_BASE_URL donde corresponda)
+        async function handleLogin(event) {
+            event.preventDefault();
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const loginErrorEl = document.getElementById('login-error');
+            loginErrorEl.classList.add('hidden');
+            try {
                 const response = await fetch(`${API_BASE_URL}/login`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
@@ -304,11 +450,10 @@
                 loginErrorEl.textContent = 'Error de conexión.'; loginErrorEl.classList.remove('hidden');
             }
         }
-
         function handleLogout() {
             currentUserRole = null; currentUsername = null;
             mainAppEl.classList.add('hidden'); loginScreenEl.classList.remove('hidden');
-            document.getElementById('username').value = ''; document.getElementById('password').value = ''; // Limpiar campos
+            document.getElementById('username').value = ''; document.getElementById('password').value = '';
             document.getElementById('login-error').classList.add('hidden');
             userInfoEl.textContent = '';
             carrito = [];
@@ -316,7 +461,6 @@
             actualizarUI();
             if (inventoryChart) { inventoryChart.destroy(); inventoryChart = null; }
         }
-
         function setupUIForRole() {
              const isAdmin = currentUserRole === 'admin';
              const isVendedor = currentUserRole === 'vendedor';
@@ -332,12 +476,9 @@
              actualizarUI();
              if (isAdmin) showTab('inventario'); else if (isVendedor) showTab('venta');
         }
-
-        // --- Cargar Datos Iniciales del Backend ---
         async function cargarDatosIniciales() {
             console.log("Cargando datos iniciales...");
             try {
-                 // --- CAMBIO: Usar API_BASE_URL ---
                 const [invResponse, histResponse] = await Promise.all([
                     fetch(`${API_BASE_URL}/api/inventory`),
                     fetch(`${API_BASE_URL}/api/history`)
@@ -348,35 +489,75 @@
                 const histData = await histResponse.json();
                 inventario.pollosEnteros = invData.inventory?.pollosEnteros || 0;
                 inventario.presas = invData.inventory?.presas || {};
-                inventario.productos = invData.inventory?.productos || {};
-                inventario.combos = invData.combos || {};
+                inventario.productos = invData.inventory?.productos || {}; // Ahora incluye precios
+                inventario.combos = invData.combos || {}; // Ahora incluye precios
                 inventario.presasPorPollo = invData.presasPorPollo || {};
                 inventario.history = histData.history || [];
-                console.log("Datos cargados.");
+                console.log("Datos cargados OK.");
             } catch (error) {
                 console.error("Error cargando datos:", error);
                 mostrarFeedback('Error al cargar datos del servidor.', 'error');
                 inventario = { pollosEnteros: 0, presas: {}, productos: {}, historial: [], combos: {}, presasPorPollo: {} };
             }
         }
-
-        // --- Lógica de Pestañas ---
-        function showTab(tabId) { /* ... (sin cambios) ... */ }
-
-        // --- Lógica del Carrito (Frontend) ---
-        function agregarComboAlCarrito() { /* ... (sin cambios) ... */ }
-        function agregarPresasAlCarrito() { /* ... (sin cambios) ... */ }
-        function agregarProductoAlCarrito() { /* ... (sin cambios) ... */ }
-        function removerDelCarrito(index) { /* ... (sin cambios) ... */ }
-        function actualizarDisplayCarrito() { /* ... (sin cambios) ... */ }
-
-        // --- ACCIONES CONECTADAS AL BACKEND ---
-
+        function showTab(tabId) {
+            const isAdmin = currentUserRole === 'admin';
+            const isVendedor = currentUserRole === 'vendedor';
+            const allowed = isAdmin || (isVendedor && tabId === 'venta');
+            if (!allowed) { mostrarFeedback(`Acceso denegado.`, 'error'); return; }
+            tabContents.forEach(content => content.classList.remove('active'));
+            tabButtons.forEach(button => button.classList.remove('active'));
+            const tabContentEl = document.getElementById(`tab-${tabId}`);
+            const activeButton = document.querySelector(`.tab-button[data-tab='${tabId}']`);
+            if (tabContentEl) tabContentEl.classList.add('active');
+            if (activeButton) activeButton.classList.add('active');
+            if (tabId === 'inventario') {
+                setTimeout(() => {
+                     if (inventoryChart) { inventoryChart.resize(); inventoryChart.update(); }
+                     else { inicializarGrafico(); }
+                }, 50);
+            }
+            lucide.createIcons();
+        }
+        function agregarComboAlCarrito() {
+            const comboKey = comboSelectEl.value;
+            const cantidad = parseInt(comboCantidadEl.value);
+            if (!comboKey || isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Seleccione combo y cantidad.', 'error'); return; }
+            const displayName = nombresCombosDisplay[comboKey] || comboKey;
+            carrito.push({ tipo: 'combo', nombre: comboKey, cantidad: cantidad, display: displayName });
+            mostrarFeedback(`${cantidad} x '${displayName}' añadidos.`, 'success');
+            comboSelectEl.value = ''; comboCantidadEl.value = '1';
+            actualizarDisplayCarrito();
+        }
+        function agregarPresasAlCarrito() {
+            const tipo = document.getElementById('sell-presas-tipo').value;
+            const cant = parseInt(document.getElementById('sell-presas-cantidad').value);
+            if (!tipo || isNaN(cant) || cant <= 0) { mostrarFeedback('Seleccione tipo y cantidad.', 'error'); return; }
+            carrito.push({ tipo: 'presa', nombre: tipo, cantidad: cant, display: tipo.charAt(0).toUpperCase() + tipo.slice(1) });
+            mostrarFeedback(`${cant} ${tipo}(s) añadidos.`, 'success');
+            document.getElementById('sell-presas-cantidad').value = '';
+            actualizarDisplayCarrito();
+        }
+        function agregarProductoAlCarrito() {
+            const nombre = document.getElementById('sell-producto-nombre').value;
+            const cant = parseInt(document.getElementById('sell-producto-cantidad').value);
+            if (!nombre || isNaN(cant) || cant <= 0) { mostrarFeedback('Seleccione producto y cantidad.', 'error'); return; }
+            carrito.push({ tipo: 'producto', nombre: nombre, cantidad: cant, display: nombre });
+            mostrarFeedback(`${cant} '${nombre}' añadidos.`, 'success');
+            document.getElementById('sell-producto-nombre').value = ''; document.getElementById('sell-producto-cantidad').value = '';
+            actualizarDisplayCarrito();
+        }
+        function removerDelCarrito(index) {
+            if (index >= 0 && index < carrito.length) {
+                carrito.splice(index, 1);
+                mostrarFeedback(`Item removido.`, 'success');
+                actualizarDisplayCarrito();
+            }
+        }
         async function procesarVentaCarrito() {
             if (carrito.length === 0) { mostrarFeedback("Carrito vacío.", "error"); return; }
             venderCarritoBtn.disabled = true;
             try {
-                 // --- CAMBIO: Usar API_BASE_URL ---
                 const response = await fetch(`${API_BASE_URL}/api/sell`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ cart: carrito })
@@ -390,13 +571,11 @@
             } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
             finally { venderCarritoBtn.disabled = carrito.length === 0; }
         }
-
         async function agregarPollos() {
             const cantidadEl = document.getElementById('add-pollos-cantidad');
             const cantidad = parseInt(cantidadEl.value);
             if (isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Cantidad inválida.', 'error'); return; }
             try {
-                 // --- CAMBIO: Usar API_BASE_URL ---
                 const response = await fetch(`${API_BASE_URL}/api/add/pollos`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ quantity: cantidad })
@@ -409,13 +588,11 @@
                 } else { mostrarFeedback(result.message || 'Error.', 'error'); }
             } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
         }
-
         async function agregarPresas() {
              const tipo = document.getElementById('add-presas-tipo').value;
              const cantidad = parseInt(document.getElementById('add-presas-cantidad').value);
              if (!tipo || isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Seleccione tipo y cantidad.', 'error'); return; }
              try {
-                 // --- CAMBIO: Usar API_BASE_URL ---
                 const response = await fetch(`${API_BASE_URL}/api/add/presas`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ type: tipo, quantity: cantidad })
@@ -428,33 +605,11 @@
                 } else { mostrarFeedback(result.message || 'Error.', 'error'); }
             } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
         }
-
-        async function agregarProducto() {
-            const nombreEl = document.getElementById('add-producto-nombre');
-            const cantidadEl = document.getElementById('add-producto-cantidad');
-            let nombre = nombreEl.value.trim(); const cantidad = parseInt(cantidadEl.value);
-            if (!nombre || isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Ingrese nombre y cantidad.', 'error'); return; }
-            try {
-                 // --- CAMBIO: Usar API_BASE_URL ---
-                const response = await fetch(`${API_BASE_URL}/api/add/producto`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: nombre, quantity: cantidad })
-                });
-                const result = await response.json();
-                if (response.ok && result.success) {
-                    mostrarFeedback(result.message || 'Producto agregado.', 'success');
-                    nombreEl.value = ''; cantidadEl.value = '';
-                    await cargarDatosIniciales(); actualizarUI();
-                } else { mostrarFeedback(result.message || 'Error.', 'error'); }
-            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
-        }
-
         async function eliminarPollos() {
              const cantidad = parseInt(document.getElementById('remove-pollos-cantidad').value);
              if (isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Ingrese cantidad.', 'error'); return; }
              if (!confirm(`¿Seguro eliminar ${cantidad} pollos (merma)?`)) return;
              try {
-                 // --- CAMBIO: Usar API_BASE_URL ---
                 const response = await fetch(`${API_BASE_URL}/api/remove/pollos`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ quantity: cantidad })
@@ -473,7 +628,6 @@
              if (!tipo || isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Seleccione tipo y cantidad.', 'error'); return; }
              if (!confirm(`¿Seguro eliminar ${cantidad} ${tipo}(s) (merma)?`)) return;
              try {
-                 // --- CAMBIO: Usar API_BASE_URL ---
                 const response = await fetch(`${API_BASE_URL}/api/remove/presas`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ type: tipo, quantity: cantidad })
@@ -492,7 +646,6 @@
             if (!nombre || isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Seleccione producto y cantidad.', 'error'); return; }
              if (!confirm(`¿Seguro eliminar ${cantidad} '${nombre}' (merma)?`)) return;
              try {
-                 // --- CAMBIO: Usar API_BASE_URL ---
                 const response = await fetch(`${API_BASE_URL}/api/remove/producto`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name: nombre, quantity: cantidad })
@@ -505,10 +658,51 @@
                 } else { mostrarFeedback(result.message || 'Error.', 'error'); }
             } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
         }
-
-        // --- Gráfico ---
-         function inicializarGrafico() { /* ... (igual que antes) ... */ }
-        function actualizarGrafico() { /* ... (igual que antes) ... */ }
+        async function refreshData() {
+            console.log("Refrescando datos...");
+            refreshButton.disabled = true;
+            refreshButton.classList.add('opacity-50', 'cursor-not-allowed');
+            try {
+                await cargarDatosIniciales();
+                actualizarUI();
+                mostrarFeedback('Datos actualizados.', 'success');
+            } catch (error) {
+                console.error("Error refrescando datos:", error);
+                mostrarFeedback('Error al actualizar datos.', 'error');
+            } finally {
+                refreshButton.disabled = false;
+                refreshButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+         function inicializarGrafico() {
+             const chartElement = document.getElementById('inventoryChart');
+             if (!chartElement || typeof Chart === 'undefined') { console.warn("Canvas o Chart.js no encontrado"); return; }
+             const ctx = chartElement.getContext('2d');
+             if (!ctx) { console.warn("No se pudo obtener contexto 2D"); return; }
+             if (inventoryChart) { inventoryChart.destroy(); inventoryChart = null; }
+             inventoryChart = new Chart(ctx, {
+                 type: 'bar', data: { labels: [], datasets: [{ label: 'Cantidad', data: [], backgroundColor: [], borderColor: [], borderWidth: 1 }] },
+                 options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 } } }, plugins: { legend: { display: false } } }
+             });
+             actualizarGrafico();
+        }
+        function actualizarGrafico() {
+             if (!inventoryChart) {
+                 if (document.getElementById('tab-inventario')?.classList.contains('active') && inventario && inventario.presas) { inicializarGrafico(); }
+                 if (!inventoryChart) return;
+             }
+             inventoryChart.data.labels = inventario.presas ? Object.keys(inventario.presas) : [];
+             inventoryChart.data.datasets[0].data = inventario.presas ? Object.values(inventario.presas) : [];
+             const bgColors = ['rgba(255, 99, 132, 0.6)', 'rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)', 'rgba(75, 192, 192, 0.6)'];
+             const borderColors = ['rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)', 'rgba(255, 206, 86, 1)', 'rgba(75, 192, 192, 1)'];
+             while (bgColors.length < inventoryChart.data.labels.length) {
+                 bgColors.push(`rgba(${Math.floor(Math.random()*255)}, ${Math.floor(Math.random()*255)}, ${Math.floor(Math.random()*255)}, 0.6)`);
+                 borderColors.push(`rgba(${Math.floor(Math.random()*255)}, ${Math.floor(Math.random()*255)}, ${Math.floor(Math.random()*255)}, 1)`);
+             }
+             inventoryChart.data.datasets[0].backgroundColor = bgColors.slice(0, inventoryChart.data.labels.length);
+             inventoryChart.data.datasets[0].borderColor = borderColors.slice(0, inventoryChart.data.labels.length);
+             if (document.getElementById('tab-inventario')?.classList.contains('active')) { inventoryChart.update(); }
+        }
 
         // --- Inicialización General ---
         document.addEventListener('DOMContentLoaded', () => {
@@ -521,19 +715,3 @@
 
 </body>
 </html>
-```
-
-**Explicación de los Cambios en `index.html`:**
-
-* **`API_BASE_URL`:** Se añadió una constante `API_BASE_URL` al principio del script. **Aquí es donde pondrás la URL pública de tu backend una vez que lo despliegues**. Si estás corriendo el backend localmente, puedes dejarla vacía (`""`) para usar rutas relativas.
-* **Llamadas `fetch` Actualizadas:** Todas las funciones que interactúan con el backend (`handleLogin`, `cargarDatosIniciales`, `procesarVentaCarrito`, `agregarPollos`, `agregarPresas`, `agregarProducto`, `eliminarPollos`, `eliminarPresas`, `eliminarProducto`) ahora usan `fetch(\`${API_BASE_URL}/ruta/api\`, ...)` para construir la URL completa.
-
-**Siguientes Pasos:**
-
-1.  **Elegir Proveedor de Hosting para Backend:** Decide dónde quieres desplegar `app.py`. **Render.com** suele ser una buena opción gratuita y relativamente sencilla para empezar con aplicaciones Flask/Python. PythonAnywhere es otra alternativa popular.
-2.  **Desplegar el Backend:** Sigue las instrucciones del proveedor elegido para subir tu código (`app.py`, `data.json`, `requirements.txt`) y ponerlo en marcha. Necesitarás indicarles que usen `gunicorn app:app` como comando de inicio.
-3.  **Obtener la URL Pública del Backend:** Una vez desplegado, el proveedor te dará una URL pública (ej: `https://mi-inventario-pollo.onrender.com`).
-4.  **Actualizar `API_BASE_URL` en `index.html`:** Edita el archivo `index.html` (el que subirás a Netlify) y pon la URL pública de tu backend en la constante `API_BASE_URL`.
-5.  **Desplegar el Frontend en Netlify:** Sube tu carpeta `templates` (o solo el archivo `index.html` modificado) a Netlify.
-
-¿Te gustaría que nos enfoquemos en los pasos para desplegar el backend en **Render.com** como ejemp
