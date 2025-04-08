@@ -1,26 +1,19 @@
-# app.py - Backend con Flask y CORS Explícito
+# app.py - Backend con Flask y Debug para Venta
 
 import os
 import json
 import datetime
 from flask import Flask, render_template, request, jsonify
-# Importar CORS
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # --- Configuración Inicial ---
 app = Flask(__name__)
 DATA_FILE = 'data.json'
-
-# --- CAMBIO: Configurar CORS explícitamente ---
-# Permitir solicitudes desde cualquier origen (*) para pruebas.
-# Para producción, es mejor restringir a tu URL de Netlify:
-# origins = ["https://effervescent-jalebi-dec542.netlify.app", "http://127.0.0.1:5000"] # Añadir localhost para pruebas locales
-# CORS(app, resources={r"/*": {"origins": origins}})
 CORS(app, resources={r"/*": {"origins": "*"}}) # Permitir todo por ahora
 
 # --- Funciones para Manejar Datos (data.json) ---
-# (load_data, save_data, add_history_log sin cambios)
+# (load_data, save_data sin cambios)
 def load_data():
     if not os.path.exists(DATA_FILE):
         print(f"Archivo '{DATA_FILE}' no encontrado. Creando uno nuevo con hashes.")
@@ -48,17 +41,20 @@ def load_data():
 def save_data(data):
     try:
         with open(DATA_FILE, 'w', encoding='utf-8') as f: json.dump(data, f, indent=4, ensure_ascii=False)
+        print(f"Datos guardados exitosamente en {DATA_FILE}") # Log de guardado exitoso
     except IOError as e: print(f"Error crítico guardando en {DATA_FILE}: {e}")
 
 def add_history_log(message):
-    data = load_data(); timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    data['history'].insert(0, f"[{timestamp}] {message}")
-    MAX_HISTORY = 100; data['history'] = data['history'][:MAX_HISTORY]
-    save_data(data)
+    # Modificado para no cargar/guardar aquí, asume que 'data' se pasa o se carga/guarda fuera
+    # Esta función ahora solo formatea el mensaje y lo añade a la lista 'history'
+    # La responsabilidad de cargar/guardar recae en la función que llama a esta.
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    return f"[{timestamp}] {message}"
+
 
 # --- Rutas de la Aplicación ---
 @app.route('/')
-def index(): return render_template('index.html') # Útil para pruebas locales
+def index(): return render_template('index.html')
 
 # --- Rutas de la API ---
 @app.route('/login', methods=['POST'])
@@ -89,7 +85,10 @@ def add_pollos():
     data = load_data(); inventory = data['inventory']; presas_por_pollo = data.get('presasPorPollo', {})
     inventory['pollosEnteros'] = inventory.get('pollosEnteros', 0) + cantidad
     for p, c in presas_por_pollo.items(): inventory['presas'][p] = inventory['presas'].get(p, 0) + cantidad * c
-    save_data(data); add_history_log(f"ENTRADA: {cantidad} pollos."); print(f"Agregados {cantidad} pollos.")
+    log_entry = add_history_log(f"ENTRADA: {cantidad} pollos enteros agregados.")
+    data['history'].insert(0, log_entry) # Añadir log a los datos
+    save_data(data) # Guardar todo junto
+    print(f"Agregados {cantidad} pollos.")
     return jsonify({"success": True, "message": f"{cantidad} pollos agregados."})
 
 @app.route('/api/add/presas', methods=['POST'])
@@ -99,7 +98,10 @@ def add_presas():
     data = load_data()
     if tipo not in data.get('presasPorPollo', {}): return jsonify({"success": False, "message": f"Tipo '{tipo}' inválido."}), 400
     inventory = data['inventory']; inventory['presas'][tipo] = inventory['presas'].get(tipo, 0) + cantidad
-    save_data(data); add_history_log(f"ENTRADA: {cantidad} {tipo}(s)."); print(f"Agregadas {cantidad} {tipo}(s).")
+    log_entry = add_history_log(f"ENTRADA: {cantidad} {tipo}(s) individuales agregadas.")
+    data['history'].insert(0, log_entry)
+    save_data(data)
+    print(f"Agregadas {cantidad} {tipo}(s).")
     return jsonify({"success": True, "message": f"{cantidad} {tipo}(s) agregados."})
 
 @app.route('/api/add/producto', methods=['POST'])
@@ -108,16 +110,32 @@ def add_producto():
     if not nombre or not isinstance(cantidad, int) or cantidad <= 0: return jsonify({"success": False, "message": "Datos inválidos."}), 400
     data = load_data(); inventory = data['inventory']; inventory['productos'][nombre] = inventory['productos'].get(nombre, 0) + cantidad
     stock = inventory['productos'][nombre]
-    save_data(data); add_history_log(f"ENTRADA PRODUCTO: {cantidad} {nombre} (Stock: {stock})."); print(f"Producto: {cantidad} x {nombre}")
+    log_entry = add_history_log(f"ENTRADA PRODUCTO: {cantidad} {nombre} (Stock: {stock}).")
+    data['history'].insert(0, log_entry)
+    save_data(data)
+    print(f"Producto: {cantidad} x {nombre}")
     return jsonify({"success": True, "message": f"{cantidad} '{nombre}' agregados."})
 
-# --- RUTAS VENDER Y ELIMINAR ---
+# --- RUTAS VENDER Y ELIMINAR (CON DEBUG) ---
+
 @app.route('/api/sell', methods=['POST'])
 def sell_cart():
     req_data = request.get_json(); cart = req_data.get('cart')
     if not isinstance(cart, list) or not cart: return jsonify({"success": False, "message": "Carrito inválido."}), 400
-    data = load_data(); inventory = data['inventory']; combos_def = data.get('combos', {}); current_presas = inventory.get('presas', {}); current_productos = inventory.get('productos', {})
+
+    data = load_data() # Cargar datos UNA VEZ
+    inventory = data['inventory'] # Trabajar directamente con la referencia
+    combos_def = data.get('combos', {})
+    current_presas = inventory.get('presas', {})
+    current_productos = inventory.get('productos', {})
+
+    print("--- Iniciando Venta ---")
+    print("Inventario ANTES:", json.dumps(inventory)) # DEBUG
+    print("Carrito recibido:", json.dumps(cart)) # DEBUG
+
     requerimientos = {"presas": {}, "productos": {}}; items_faltantes = []; stock_suficiente = True
+
+    # Calcular requerimientos
     for item in cart:
         tipo = item.get('tipo'); nombre = item.get('nombre'); cantidad = item.get('cantidad', 0); display_name = item.get('display', nombre)
         if cantidad <= 0: continue
@@ -127,17 +145,35 @@ def sell_cart():
         elif tipo == 'presa': requerimientos['presas'][nombre] = requerimientos['presas'].get(nombre, 0) + cantidad
         elif tipo == 'producto': requerimientos['productos'][nombre] = requerimientos['productos'].get(nombre, 0) + cantidad
         else: stock_suficiente = False; items_faltantes.append(f"Tipo? '{display_name}'")
+
+    print("Requerimientos calculados:", json.dumps(requerimientos)) # DEBUG
+
+    # Comprobar stock
     for p, cR in requerimientos['presas'].items():
         if current_presas.get(p, 0) < cR: stock_suficiente = False; items_faltantes.append(f"{p}({cR}/{current_presas.get(p, 0)})")
     for p, cR in requerimientos['productos'].items():
          if current_productos.get(p, 0) < cR: stock_suficiente = False; items_faltantes.append(f"{p}({cR}/{current_productos.get(p, 0)})")
-    if not stock_suficiente: print(f"Venta fallida stock: {items_faltantes}"); return jsonify({"success": False, "message": f"Stock insuficiente: {', '.join(items_faltantes)}"}), 400
+
+    if not stock_suficiente:
+        print(f"Venta fallida stock: {items_faltantes}"); return jsonify({"success": False, "message": f"Stock insuficiente: {', '.join(items_faltantes)}"}), 400
+
+    # Si hay stock, descontar del inventario (modificando 'data' directamente)
+    print("Stock suficiente. Descontando...")
     for p, cR in requerimientos['presas'].items(): inventory['presas'][p] -= cR
     for p, cR in requerimientos['productos'].items(): inventory['productos'][p] -= cR
+
+    print("Inventario DESPUÉS (antes de guardar):", json.dumps(inventory)) # DEBUG
+
+    # Generar log y añadirlo a los datos
     resumen_display = ', '.join([f"{item['cantidad']}x{item.get('display', item['nombre'])}" for item in cart])
-    add_history_log(f"VENTA CARRITO ({len(cart)} items): {resumen_display}.") # Esto guarda los datos
-    print(f"Venta procesada: {resumen_display}")
+    log_entry = add_history_log(f"VENTA CARRITO ({len(cart)} items): {resumen_display}.") # Solo formatea
+    data['history'].insert(0, log_entry) # Añadir al historial en 'data'
+
+    # Guardar TODOS los cambios (inventario + historial)
+    save_data(data)
+    print(f"Venta procesada y datos guardados: {resumen_display}")
     return jsonify({"success": True, "message": "Venta procesada!"})
+
 
 @app.route('/api/remove/pollos', methods=['POST'])
 def remove_pollos():
@@ -151,7 +187,10 @@ def remove_pollos():
     if not stock_presas_suficiente: msg = f"Presas insuficientes: {presas_necesarias}"; print(msg); return jsonify({"success": False, "message": msg}), 400
     inventory['pollosEnteros'] = max(0, inventory.get('pollosEnteros', 0) - cantidad)
     for p, cPP in presas_por_pollo.items(): inventory['presas'][p] = max(0, inventory['presas'].get(p, 0) - cantidad * cPP)
-    add_history_log(f"ELIMINACIÓN: {cantidad} pollos (merma)."); print(f"Eliminados {cantidad} pollos (merma).")
+    log_entry = add_history_log(f"ELIMINACIÓN: {cantidad} pollos (merma).")
+    data['history'].insert(0, log_entry)
+    save_data(data)
+    print(f"Eliminados {cantidad} pollos (merma).")
     return jsonify({"success": True, "message": f"{cantidad} pollos eliminados." })
 
 @app.route('/api/remove/presas', methods=['POST'])
@@ -162,7 +201,10 @@ def remove_presas():
     if tipo not in inventory.get('presas', {}): return jsonify({"success": False, "message": f"Presa '{tipo}' no existe."}), 400
     if inventory['presas'][tipo] < cantidad: msg = f"Stock insuf. {tipo} (Disp:{inventory['presas'][tipo]})"; return jsonify({"success": False, "message": msg}), 400
     inventory['presas'][tipo] -= cantidad
-    add_history_log(f"ELIMINACIÓN: {cantidad} {tipo}(s) (merma)."); print(f"Eliminadas {cantidad} {tipo}(s) (merma).")
+    log_entry = add_history_log(f"ELIMINACIÓN: {cantidad} {tipo}(s) (merma).")
+    data['history'].insert(0, log_entry)
+    save_data(data)
+    print(f"Eliminadas {cantidad} {tipo}(s) (merma).")
     return jsonify({"success": True, "message": f"{cantidad} {tipo}(s) eliminados." })
 
 @app.route('/api/remove/producto', methods=['POST'])
@@ -174,8 +216,12 @@ def remove_producto():
     if inventory['productos'][nombre] < cantidad: msg = f"Stock insuf. {nombre} (Disp:{inventory['productos'][nombre]})"; return jsonify({"success": False, "message": msg}), 400
     inventory['productos'][nombre] -= cantidad
     stock = inventory['productos'][nombre]
-    add_history_log(f"ELIMINACIÓN PRODUCTO: {cantidad} {nombre} (merma). Stock: {stock}."); print(f"Eliminado producto: {cantidad} x {nombre} (merma).")
+    log_entry = add_history_log(f"ELIMINACIÓN PRODUCTO: {cantidad} {nombre} (merma). Stock: {stock}.")
+    data['history'].insert(0, log_entry)
+    save_data(data)
+    print(f"Eliminado producto: {cantidad} x {nombre} (merma).")
     return jsonify({"success": True, "message": f"{cantidad} '{nombre}' eliminados." })
+
 
 # --- Ejecutar la Aplicación ---
 if __name__ == '__main__':
