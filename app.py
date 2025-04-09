@@ -1,4 +1,4 @@
-# app.py - Backend con Flask, PostgreSQL y API de Reportes
+# app.py - Backend con Flask, PostgreSQL y Edición de Precios
 
 import os
 import json
@@ -19,25 +19,20 @@ CORS(app, resources={r"/*": {"origins": "*"}}) # Permitir todo por ahora
 
 # --- Conexión a Base de Datos ---
 def get_db_connection():
-    """Establece conexión con la base de datos PostgreSQL."""
+    # ... (igual que antes) ...
     if not DATABASE_URL: print("Intento de conexión DB fallido: DATABASE_URL no configurada."); return None
-    try:
-        conn = psycopg2.connect(DATABASE_URL); return conn
+    try: conn = psycopg2.connect(DATABASE_URL); return conn # No imprimir éxito cada vez
     except psycopg2.OperationalError as e: print(f"Error conectando a la base de datos: {e}"); return None
 
 # --- Inicialización de la Base de Datos ---
-# (La función init_db() se mantiene igual que en la versión anterior,
-# asegurando que las tablas users, inventory_*, history, definitions,
-# sales, sale_items existan)
 def init_db():
+    # ... (igual que antes, asegura que todas las tablas existan) ...
     print("Intentando inicializar/actualizar DB...")
     conn = get_db_connection()
     if not conn: print("No se pudo conectar a la DB para inicializar."); return
     try:
         with conn.cursor() as cur:
             # Verificar/Crear todas las tablas (users, inventory_*, history, definitions, sales, sale_items)
-            # ... (código de init_db de la versión anterior flask_backend_v11_reporting_db) ...
-             # Crear tabla de usuarios
             cur.execute("CREATE TABLE IF NOT EXISTS users (...);") # Definición completa omitida por brevedad
             cur.execute("CREATE TABLE IF NOT EXISTS inventory_presas (...);")
             cur.execute("CREATE TABLE IF NOT EXISTS inventory_productos (...);")
@@ -59,7 +54,7 @@ with app.app_context(): init_db()
 
 # --- Funciones Auxiliares ---
 def add_history_db(message, conn):
-    """Agrega una entrada al historial simple en la base de datos."""
+    # ... (igual que antes) ...
     try:
         with conn.cursor() as cur:
             cur.execute("INSERT INTO history (message) VALUES (%s)", (message,))
@@ -67,7 +62,7 @@ def add_history_db(message, conn):
         return True
     except psycopg2.Error as e: print(f"Error añadiendo historial a DB: {e}"); return False
 
-# --- Rutas API (Login, Get Inventory, Get History, Add*, Remove* sin cambios) ---
+# --- Rutas API (Login, Get Inventory, Get History, Add*, Sell, Remove* sin cambios funcionales) ---
 @app.route('/')
 def index(): return render_template('index.html')
 @app.route('/login', methods=['POST'])
@@ -82,7 +77,7 @@ def login():
             cur.execute("SELECT password_hash, role FROM users WHERE username = %s", (username,))
             user_info = cur.fetchone()
         if user_info and check_password_hash(user_info['password_hash'], password_attempt):
-            print(f"Login OK: {username}"); return jsonify({"success": True, "role": user_info['role']})
+            print(f"Login OK: {username}"); return jsonify({"success": True, "role": user_info.get('role', 'vendedor')})
         else:
             print(f"Login FAIL: {username}"); return jsonify({"success": False, "message": "Credenciales incorrectas."}), 401
     except psycopg2.Error as e: print(f"Error DB login: {e}"); return jsonify({"success": False, "message": "Error interno (L2)."}), 500
@@ -106,8 +101,8 @@ def get_inventory():
             definitions = {row['key']: row['value'] for row in cur.fetchall()}
             combos_con_precio_float = {}
             for key, combo_data in definitions.get('combos', {}).items():
-                try: combos_con_precio_float[key] = { "presas": combo_data.get("presas", {}), "precio": float(combo_data.get("precio", "0.00")) }
-                except (ValueError, TypeError): combos_con_precio_float[key] = { "presas": combo_data.get("presas", {}), "precio": 0.00 }
+                try: combos_con_precio_float[key] = { "presas": combo_data.get("presas", {}), "productos": combo_data.get("productos", {}), "precio": float(combo_data.get("precio", "0.00")) } # Incluir productos
+                except (ValueError, TypeError): combos_con_precio_float[key] = { "presas": combo_data.get("presas", {}), "productos": combo_data.get("productos", {}), "precio": 0.00 }
             inventory_data = { "inventory": {"pollosEnteros": pollos_enteros, "presas": presas, "productos": productos}, "combos": combos_con_precio_float, "presasPorPollo": definitions.get('presasPorPollo', {}) }
         return jsonify(inventory_data)
     except psycopg2.Error as e: print(f"Error DB get_inventory: {e}"); return jsonify({"success": False, "message": "Error interno (I2)."}), 500
@@ -198,7 +193,7 @@ def add_producto():
 
 @app.route('/api/sell', methods=['POST'])
 def sell_cart():
-    # ... (código igual que antes, incluyendo INSERTs en sales y sale_items) ...
+    # ... (código igual que antes) ...
     req_data = request.get_json(); cart = req_data.get('cart')
     if not isinstance(cart, list) or not cart: return jsonify({"success": False, "message": "Carrito inválido."}), 400
     conn = get_db_connection();
@@ -222,6 +217,8 @@ def sell_cart():
                     try: precio_unitario = Decimal(str(combo_info.get('precio', '0.00')))
                     except InvalidOperation: print(f"Adv: Precio inválido combo {nombre}")
                     for p, cR in combo_info.get('presas', {}).items(): requerimientos['presas'][p] = requerimientos['presas'].get(p, 0) + cR * cantidad
+                    # --- CAMBIO FUTURO: Considerar productos en combos ---
+                    # for p, cR in combo_info.get('productos', {}).items(): requerimientos['productos'][p] = requerimientos['productos'].get(p, 0) + cR * cantidad
                 elif tipo == 'presa': requerimientos['presas'][nombre] = requerimientos['presas'].get(nombre, 0) + cantidad
                 elif tipo == 'producto':
                     if nombre not in current_productos: stock_suficiente = False; items_faltantes.append(f"Prod '{display_name}'?"); continue
@@ -329,82 +326,107 @@ def remove_producto():
     finally:
         if conn: conn.close()
 
-# --- NUEVA RUTA PARA REPORTE DE VENTAS ---
 @app.route('/api/reports/sales', methods=['GET'])
 def get_sales_report():
-    """Devuelve un resumen de las ventas, opcionalmente filtrado por fecha."""
-    start_date_str = request.args.get('start_date') # Formato YYYY-MM-DD
-    end_date_str = request.args.get('end_date')     # Formato YYYY-MM-DD
-
-    # Validación básica de fechas (se puede mejorar)
-    start_date = None
+    # ... (código igual que antes) ...
+    start_date_str = request.args.get('start_date'); end_date_str = request.args.get('end_date')
+    start_date = None; end_date = None
     if start_date_str:
         try: start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
-        except ValueError: return jsonify({"success": False, "message": "Formato de fecha inicial inválido (YYYY-MM-DD)."}), 400
-    end_date = None
+        except ValueError: return jsonify({"success": False, "message": "Formato fecha inicial inválido."}), 400
     if end_date_str:
-        try:
-            end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date()
-            # Para incluir el día final completo, ajustar al final del día
-            end_date = datetime.datetime.combine(end_date, datetime.time.max)
-        except ValueError: return jsonify({"success": False, "message": "Formato de fecha final inválido (YYYY-MM-DD)."}), 400
-
-    conn = get_db_connection()
+        try: end_date = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').date(); end_date = datetime.datetime.combine(end_date, datetime.time.max)
+        except ValueError: return jsonify({"success": False, "message": "Formato fecha final inválido."}), 400
+    conn = get_db_connection();
     if not conn: return jsonify({"success": False, "message": "Error DB (R1)."}), 500
-
     sales_list = []
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            # Construir query base
-            sql = """
-                SELECT s.sale_id, s.timestamp, s.total_amount,
-                       si.item_type, si.display_name, si.quantity, si.price_per_item
-                FROM sales s
-                JOIN sale_items si ON s.sale_id = si.sale_id
-            """
-            params = []
-            conditions = []
-
-            # Añadir filtros de fecha si se proporcionaron
-            if start_date:
-                conditions.append("s.timestamp >= %s")
-                params.append(start_date)
-            if end_date:
-                conditions.append("s.timestamp <= %s")
-                params.append(end_date)
-
-            if conditions:
-                sql += " WHERE " + " AND ".join(conditions)
-
-            sql += " ORDER BY s.timestamp DESC, s.sale_id DESC, si.item_id ASC;" # Ordenar
-
-            print(f"Ejecutando query de reporte: {sql} con params {params}") # DEBUG
-            cur.execute(sql, tuple(params))
-            results = cur.fetchall()
-
-            # Agrupar resultados por venta
+            sql = """ SELECT s.sale_id, s.timestamp, s.total_amount, si.item_type, si.display_name, si.quantity, si.price_per_item FROM sales s JOIN sale_items si ON s.sale_id = si.sale_id """
+            params = []; conditions = []
+            if start_date: conditions.append("s.timestamp >= %s"); params.append(start_date)
+            if end_date: conditions.append("s.timestamp <= %s"); params.append(end_date)
+            if conditions: sql += " WHERE " + " AND ".join(conditions)
+            sql += " ORDER BY s.timestamp DESC, s.sale_id DESC, si.item_id ASC;"
+            print(f"Query reporte: {sql} con params {params}")
+            cur.execute(sql, tuple(params)); results = cur.fetchall()
             sales_dict = {}
             for row in results:
                 sale_id = row['sale_id']
-                if sale_id not in sales_dict:
-                    sales_dict[sale_id] = {
-                        "sale_id": sale_id,
-                        "timestamp": row['timestamp'].isoformat(), # Formato estándar ISO
-                        "total_amount": float(row['total_amount']), # Convertir Decimal a float
-                        "items": []
-                    }
-                sales_dict[sale_id]['items'].append({
-                    "type": row['item_type'],
-                    "name": row['display_name'], # Usar display_name para reporte
-                    "quantity": row['quantity'],
-                    "price": float(row['price_per_item'])
-                })
-            sales_list = list(sales_dict.values()) # Convertir diccionario a lista
-
+                if sale_id not in sales_dict: sales_dict[sale_id] = { "sale_id": sale_id, "timestamp": row['timestamp'].isoformat(), "total_amount": float(row['total_amount']), "items": [] }
+                sales_dict[sale_id]['items'].append({ "type": row['item_type'], "name": row['display_name'], "quantity": row['quantity'], "price": float(row['price_per_item']) })
+            sales_list = list(sales_dict.values())
         return jsonify({"success": True, "sales": sales_list})
+    except psycopg2.Error as e: print(f"Error DB get_sales_report: {e}"); return jsonify({"success": False, "message": "Error interno (R2)."}), 500
+    finally:
+        if conn: conn.close()
+
+# --- NUEVA RUTA PARA ACTUALIZAR PRECIOS ---
+@app.route('/api/update/price', methods=['POST'])
+def update_price():
+    req_data = request.get_json()
+    item_type = req_data.get('item_type') # 'producto' o 'combo'
+    item_name = req_data.get('item_name') # nombre_producto o combo_key
+    new_price_str = req_data.get('new_price')
+
+    if not item_type or not item_name or new_price_str is None:
+        return jsonify({"success": False, "message": "Faltan datos (tipo, nombre, precio)."}), 400
+
+    try:
+        new_price = Decimal(str(new_price_str))
+        if new_price < 0:
+            return jsonify({"success": False, "message": "El precio no puede ser negativo."}), 400
+        new_price = new_price.quantize(Decimal("0.01")) # Asegurar 2 decimales
+    except InvalidOperation:
+        return jsonify({"success": False, "message": "Formato de precio inválido."}), 400
+
+    conn = get_db_connection()
+    if not conn: return jsonify({"success": False, "message": "Error DB (UP1)."}), 500
+
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            log_msg = ""
+            if item_type == 'producto':
+                cur.execute("UPDATE inventory_productos SET precio = %s WHERE nombre_producto = %s", (new_price, item_name))
+                if cur.rowcount == 0:
+                     conn.rollback()
+                     return jsonify({"success": False, "message": f"Producto '{item_name}' no encontrado."}), 404
+                log_msg = f"PRECIO ACTUALIZADO: Producto '{item_name}' a ${new_price}."
+                print(log_msg)
+
+            elif item_type == 'combo':
+                # Cargar, modificar y guardar el JSON de combos
+                cur.execute("SELECT value FROM definitions WHERE key = 'combos' FOR UPDATE") # Bloquear fila
+                result = cur.fetchone()
+                if not result:
+                    conn.rollback()
+                    return jsonify({"success": False, "message": "Definición de combos no encontrada."}), 404
+
+                combos_dict = result['value']
+                if item_name not in combos_dict:
+                    conn.rollback()
+                    return jsonify({"success": False, "message": f"Combo '{item_name}' no encontrado en definiciones."}), 404
+
+                # Actualizar precio (guardado como string en JSON)
+                combos_dict[item_name]['precio'] = str(new_price)
+
+                # Guardar el JSON modificado
+                cur.execute("UPDATE definitions SET value = %s WHERE key = 'combos'", (json.dumps(combos_dict),))
+                log_msg = f"PRECIO ACTUALIZADO: Combo '{item_name}' a ${new_price}."
+                print(log_msg)
+
+            else:
+                conn.rollback()
+                return jsonify({"success": False, "message": "Tipo de item inválido."}), 400
+
+            # Guardar historial y confirmar transacción
+            if not add_history_db(log_msg, conn): raise psycopg2.Error("Fallo al guardar historial")
+            conn.commit()
+            return jsonify({"success": True, "message": log_msg})
 
     except psycopg2.Error as e:
-        print(f"Error DB get_sales_report: {e}"); return jsonify({"success": False, "message": "Error interno (R2)."}), 500
+        print(f"Error DB update_price: {e}"); conn.rollback()
+        return jsonify({"success": False, "message": "Error interno al actualizar precio (UP2)."}), 500
     finally:
         if conn: conn.close()
 
@@ -413,3 +435,4 @@ def get_sales_report():
 if __name__ == '__main__':
     print("Iniciando servidor Flask para DESARROLLO LOCAL...")
     app.run(host='0.0.0.0', port=5000, debug=True)
+
