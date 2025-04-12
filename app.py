@@ -1,4 +1,4 @@
-# app.py - Backend Completo con SyntaxError Corregido y 'cantidad' consistente
+# app.py - Backend Completo con corrección para cantidad en cocina
 
 import os
 import json
@@ -324,9 +324,7 @@ def sell_cart():
                 if not isinstance(item, dict):
                     print(f"    Error: Item {item_index+1} no es dict: {item}. Saltando."); items_faltantes.append(f"Item inválido {item_index+1}"); stock_suficiente = False; continue
                 tipo = item.get('tipo'); nombre = item.get('nombre')
-                # ***** CORRECCIÓN CLAVE *****
                 cantidad = item.get('cantidad') # Usar 'cantidad' (español)
-                # ***** FIN CORRECCIÓN *****
                 display_name = item.get('display', nombre)
                 print(f"  Procesando item {item_index+1}/{len(cart)}: {cantidad} x '{nombre}' (Tipo: {tipo})")
                 if not isinstance(cantidad, int) or cantidad <= 0:
@@ -352,7 +350,15 @@ def sell_cart():
                     requerimientos['productos'][nombre] = requerimientos['productos'].get(nombre, 0) + cantidad
                 else: print(f"    Error: Tipo desconocido '{tipo}'."); items_faltantes.append(f"Tipo desconocido '{display_name}'"); stock_suficiente = False; continue
                 item_total = precio_unitario * cantidad; total_venta += item_total
-                items_para_db.append({"type": tipo, "name": nombre, "display": display_name, "quantity": cantidad, "price": float(precio_unitario)})
+                # ***** CORRECCIÓN CLAVE PARA COCINA *****
+                items_para_db.append({
+                    "type": tipo,
+                    "name": nombre,
+                    "display": display_name,
+                    "cantidad": cantidad, # <-- USAR 'cantidad' aquí también
+                    "price": float(precio_unitario)
+                })
+                # ***** FIN CORRECCIÓN *****
                 print(f"    Subtotal item: {item_total:.2f}. Total acum: {total_venta:.2f}")
             print(f"\nReq. totales: Presas={requerimientos['presas_total']}, Productos={requerimientos['productos']}. Total Venta: {total_venta:.2f}")
             print("Verificando stock suficiente...")
@@ -366,7 +372,8 @@ def sell_cart():
             print("Stock OK. Registrando venta y descontando...")
             cur.execute("INSERT INTO sales (total_amount) VALUES (%s) RETURNING sale_id;", (total_venta,)); sale_id = cur.fetchone()['sale_id']; print(f"Venta ID: {sale_id} registrada.")
             if items_para_db:
-                items_sql_data = [(sale_id, i['type'], i['name'], i['display'], i['quantity'], Decimal(str(i['price']))) for i in items_para_db]
+                items_sql_data = [(sale_id, i['type'], i['name'], i['display'], i['cantidad'], Decimal(str(i['price']))) for i in items_para_db] # Usar i['cantidad']
+                # CORREGIDO: Asegurar que la columna quantity en sale_items reciba el valor correcto
                 cur.executemany("INSERT INTO sale_items (sale_id, item_type, item_name, display_name, quantity, price_per_item) VALUES (%s, %s, %s, %s, %s, %s)", items_sql_data); print("Items de venta registrados.")
             if requerimientos['presas_total'] > 0:
                 print(f"Descontando {requerimientos['presas_total']} presas..."); cur.execute("UPDATE inventory_info SET value_int = value_int - %s WHERE key = %s AND value_int >= %s", (requerimientos['presas_total'], PRESAS_KEY, requerimientos['presas_total']))
@@ -379,10 +386,10 @@ def sell_cart():
                     if cur.rowcount == 0: stock_actual_fallo = current_productos.get(p_desc, {}).get('cantidad', '???'); print(f"¡ERROR CRÍTICO descontando '{p_desc}'! Stock: {stock_actual_fallo}. Req: {c_desc}."); raise psycopg2.Error(f"Fallo al descontar '{p_desc}'.")
                 print("Productos descontados OK.")
             if informar_cocinero:
-                print("Enviando a cocina..."); items_json_cocina = json.dumps(items_para_db)
+                print("Enviando a cocina..."); items_json_cocina = json.dumps(items_para_db) # items_para_db ahora usa 'cantidad'
                 try: cur.execute("INSERT INTO pending_orders (items, nota) VALUES (%s, %s) RETURNING order_id;", (items_json_cocina, nota_cocinero)); order_id_cocina = cur.fetchone()['order_id']; print(f"Orden enviada a cocina ID: {order_id_cocina}")
                 except psycopg2.Error as e_cocina: print(f"¡ERROR enviando a cocina! Venta ID {sale_id}. Error: {e_cocina}. VENTA CONTINÚA.")
-            resumen_display = ', '.join([f"{i.get('quantity', '?')}x{i.get('display', i.get('name', '?'))}" for i in items_para_db]); total_venta_str = f"{total_venta:.2f}"
+            resumen_display = ', '.join([f"{i.get('cantidad', '?')}x{i.get('display', i.get('name', '?'))}" for i in items_para_db]); total_venta_str = f"{total_venta:.2f}" # Usar i.get('cantidad')
             log_msg = f"VENTA CARRITO (ID:{sale_id}, {len(items_para_db)} items): {resumen_display}. Total: ${total_venta_str}"
             if informar_cocinero: log_msg += " [Enviado a Cocina]"
             if nota_cocinero: log_msg += f" [Nota: {nota_cocinero[:30]}{'...' if len(nota_cocinero)>30 else ''}]"
@@ -556,7 +563,6 @@ def add_custom_combo():
     conn_check = get_db_connection();
     if not conn_check: return jsonify({"success": False, "message": "Error DB (CC_Check1)."}), 500
     try:
-        # CORREGIDO: Indentación y variable cur_check
         with conn_check.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur_check:
              cur_check.execute("SELECT nombre_producto FROM inventory_productos")
              valid_productos = {row['nombre_producto'] for row in cur_check.fetchall()}
@@ -565,8 +571,7 @@ def add_custom_combo():
         if conn_check: conn_check.close()
     for item in items:
         item_type = item.get('type', '').lower(); item_name = item.get('name')
-        # CORREGIDO: Usar 'cantidad' consistentemente
-        item_qty = item.get('cantidad')
+        item_qty = item.get('cantidad') # CORREGIDO: Usar 'cantidad'
         if item_type not in valid_item_types or not item_name or not isinstance(item_qty, int) or item_qty <= 0: return jsonify({"success": False, "message": f"Item inválido en combo: {item}"}), 400
         if item_type == 'presa': new_combo_data['presas_necesarias'] += item_qty
         elif item_type == 'producto':
@@ -630,8 +635,10 @@ def get_pending_orders():
                           try: item['price'] = float(item.get('price', 0.0))
                           except (ValueError, TypeError): item['price'] = 0.0
                           # CORREGIDO: Usar 'cantidad' consistentemente
-                          item['quantity'] = int(item.get('cantidad', 0))
-                          items_list.append(item)
+                          # También renombrar la clave en el diccionario que se envía al frontend
+                          item_copy = item.copy() # Evitar modificar el original si se reutiliza
+                          item_copy['quantity'] = int(item_copy.pop('cantidad', 0)) # Leer 'cantidad', guardar como 'quantity'
+                          items_list.append(item_copy)
                         else: print(f"Advertencia: Item inválido (no dict) en orden {row['order_id']}: {item}")
                 except (json.JSONDecodeError, TypeError, ValueError) as json_err:
                      print(f"Error parseando items orden {row['order_id']}: {json_err}"); items_list.append({"display": "Error items", "quantity": 1, "type": "error", "price": 0.0})
@@ -664,3 +671,4 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('FLASK_DEBUG', 'False') == 'True'
     print(f"Iniciando servidor Flask. Puerto: {port}, Modo Debug: {debug_mode}")
     app.run(host='0.0.0.0', port=port, debug=debug_mode, use_reloader=debug_mode)
+
