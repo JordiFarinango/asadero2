@@ -1,11 +1,11 @@
-# app.py - Backend con Flask, PostgreSQL y Eliminar Combo Personalizado
+# app.py - Backend Final con Presas Generales
 
 import os
 import json
 import datetime
 import psycopg2
 import psycopg2.extras
-import re # Para normalizar nombres de combos
+import re
 from decimal import Decimal, InvalidOperation
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
@@ -16,38 +16,32 @@ app = Flask(__name__)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     print("¡ERROR FATAL! Variable de entorno DATABASE_URL no encontrada.")
-CORS(app, resources={r"/*": {"origins": "*"}}) # Permitir todo por ahora
+CORS(app, resources={r"/*": {"origins": "*"}}) # Considera restringir a tu URL de Netlify en producción
 
 # --- Constantes ---
-DEFAULT_PRESA_PRICE = Decimal("1.25") # Precio por defecto para una presa genérica
-PRESAS_KEY = 'presas_total' # Clave usada en tabla inventory_info
-PRESA_PRICE_KEY = 'presa_precio_default' # Clave usada en tabla inventory_info
-PRESAS_PER_POLLO_KEY = 'presas_por_pollo_total' # Clave usada en tabla definitions
-COMBOS_KEY = 'combos' # Clave usada en tabla definitions
+DEFAULT_PRESA_PRICE = Decimal("1.25")
+PRESAS_KEY = 'presas_total'
+PRESA_PRICE_KEY = 'presa_precio_default'
+PRESAS_PER_POLLO_KEY = 'presas_por_pollo_total'
+COMBOS_KEY = 'combos'
 
 # --- Conexión a Base de Datos ---
 def get_db_connection():
-    """Establece conexión con la base de datos PostgreSQL."""
     if not DATABASE_URL: print("Intento de conexión DB fallido: DATABASE_URL no configurada."); return None
     try: conn = psycopg2.connect(DATABASE_URL); return conn
     except psycopg2.OperationalError as e: print(f"Error conectando a la base de datos: {e}"); return None
 
 # --- Inicialización de la Base de Datos ---
 def init_db():
-    """Crea/Actualiza las tablas necesarias si no existen."""
-    print("Intentando inicializar/actualizar DB...")
+    print("Intentando inicializar/actualizar DB para Presa General...")
     conn = get_db_connection()
     if not conn: print("No se pudo conectar a la DB para inicializar."); return
 
     try:
         with conn.cursor() as cur:
-            # Verificar/Crear todas las tablas
+            # Crear/Verificar Tablas
             print("Verificando tabla 'users'...")
             cur.execute("CREATE TABLE IF NOT EXISTS users (username VARCHAR(80) PRIMARY KEY, password_hash VARCHAR(255) NOT NULL, role VARCHAR(50) NOT NULL);")
-            # Ya no se usa inventory_presas
-            # print("Verificando tabla 'inventory_presas'...")
-            # cur.execute("CREATE TABLE IF NOT EXISTS inventory_presas (nombre_presa VARCHAR(80) PRIMARY KEY, cantidad INTEGER NOT NULL DEFAULT 0 CHECK (cantidad >= 0), precio NUMERIC(10, 2) NOT NULL DEFAULT 1.00 CHECK (precio >= 0.00));")
-            # cur.execute("ALTER TABLE inventory_presas ADD COLUMN IF NOT EXISTS precio NUMERIC(10, 2) NOT NULL DEFAULT 1.00 CHECK (precio >= 0.00);")
             print("Verificando tabla 'inventory_productos'...")
             cur.execute("CREATE TABLE IF NOT EXISTS inventory_productos (nombre_producto VARCHAR(100) PRIMARY KEY, cantidad INTEGER NOT NULL DEFAULT 0 CHECK (cantidad >= 0), precio NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (precio >= 0.00));")
             cur.execute("ALTER TABLE inventory_productos ADD COLUMN IF NOT EXISTS precio NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (precio >= 0.00);")
@@ -62,43 +56,34 @@ def init_db():
             print("Verificando tabla 'sale_items'...")
             cur.execute("CREATE TABLE IF NOT EXISTS sale_items (item_id SERIAL PRIMARY KEY, sale_id INTEGER NOT NULL REFERENCES sales(sale_id) ON DELETE CASCADE, item_type VARCHAR(50) NOT NULL, item_name VARCHAR(100) NOT NULL, display_name VARCHAR(150), quantity INTEGER NOT NULL CHECK (quantity > 0), price_per_item NUMERIC(10, 2) NOT NULL CHECK (price_per_item >= 0.00));")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items (sale_id);")
+            cur.execute("DROP TABLE IF EXISTS inventory_presas;") # Eliminar tabla obsoleta
 
-            # Eliminar tabla obsoleta 'inventory_presas' si aún existe
-            cur.execute("DROP TABLE IF EXISTS inventory_presas;")
-
-            # --- Insertar/Actualizar datos iniciales ---
-            # (Asegúrate de que esta lógica esté presente si la necesitas, adaptada a la nueva estructura)
-            # Ejemplo: Insertar usuarios si no existen
-            cur.execute("SELECT COUNT(*) FROM users;")
-            if cur.fetchone()[0] == 0:
-                print("Insertando usuarios iniciales..."); initial_users = [('admin', generate_password_hash("admin123"), 'admin'), ('venta', generate_password_hash("venta123"), 'vendedor')]
-                cur.executemany("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)", initial_users)
-
-            # Insertar productos iniciales si no existen
-            initial_productos = [('Papas', 10, Decimal('1.50')), ('Gaseosa', 15, Decimal('0.75')), ('Ají', 5, Decimal('0.50'))]
+            # --- Insertar/Actualizar datos iniciales (Asegurar valores por defecto) ---
+            cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s) ON CONFLICT (username) DO NOTHING;", ('admin', generate_password_hash("admin123"), 'admin'))
+            cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s) ON CONFLICT (username) DO NOTHING;", ('venta', generate_password_hash("venta123"), 'vendedor'))
+            initial_productos = [('Papas', 0, Decimal('1.50')), ('Gaseosa', 0, Decimal('0.75')), ('Ají', 0, Decimal('0.50'))] # Empezar con stock 0?
             for nombre, cant, precio in initial_productos:
-                 cur.execute("INSERT INTO inventory_productos (nombre_producto, cantidad, precio) VALUES (%s, %s, %s) ON CONFLICT (nombre_producto) DO NOTHING;", (nombre, cant, precio))
-
-            # Insertar contadores/valores generales en inventory_info
+                cur.execute("INSERT INTO inventory_productos (nombre_producto, cantidad, precio) VALUES (%s, %s, %s) ON CONFLICT (nombre_producto) DO NOTHING;", (nombre, cant, precio))
             cur.execute("INSERT INTO inventory_info (key, value_int) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;", ('pollosEnteros', 0))
-            cur.execute("INSERT INTO inventory_info (key, value_int) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;", (PRESAS_KEY, 0)) # Total de presas inicial 0
-            cur.execute("INSERT INTO inventory_info (key, value_numeric) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;", (PRESA_PRICE_KEY, DEFAULT_PRESA_PRICE)) # Precio default presa
+            cur.execute("INSERT INTO inventory_info (key, value_int) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;", (PRESAS_KEY, 0))
+            cur.execute("INSERT INTO inventory_info (key, value_numeric) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;", (PRESA_PRICE_KEY, DEFAULT_PRESA_PRICE))
 
             # Actualizar definiciones
             initial_presas_por_pollo_total = 8
             cur.execute("INSERT INTO definitions (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
                         (PRESAS_PER_POLLO_KEY, json.dumps(initial_presas_por_pollo_total)))
-
+            # Combos predefinidos solicitados
             initial_combos = {
                 "combo_1_8": { "presas_necesarias": 1, "productos": {}, "precio": "2.00" },
                 "combo_1_4": { "presas_necesarias": 2, "productos": {}, "precio": "3.50" },
                 "combo_1_2": { "presas_necesarias": 4, "productos": {}, "precio": "6.50" },
-                "combo_entero": { "presas_necesarias": initial_presas_por_pollo_total, "productos": {}, "precio": "12.00" },
-                "combo_1_4_papas": { "presas_necesarias": 2, "productos": {"Papas": 1}, "precio": "4.50" }
+                "combo_entero": { "presas_necesarias": initial_presas_por_pollo_total, "productos": {}, "precio": "12.00" }
+                # Añadir otros predefinidos si se desea, ej:
+                # "combo_1_4_papas": { "presas_necesarias": 2, "productos": {"Papas": 1}, "precio": "4.50" }
             }
             cur.execute("INSERT INTO definitions (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
                         (COMBOS_KEY, json.dumps(initial_combos)))
-            print("Definiciones actualizadas para presas generales.")
+            print("Definiciones actualizadas para presas generales y combos predefinidos.")
 
             cur.execute("SELECT COUNT(*) FROM history;")
             if cur.fetchone()[0] == 0:
@@ -106,17 +91,20 @@ def init_db():
                  cur.execute("INSERT INTO history (timestamp, message) VALUES (%s, %s)", (ts, "Sistema inicializado con DB (presas generales)."))
 
             conn.commit()
-            print("Base de datos inicializada/actualizada (con presas generales).")
+            print("Base de datos inicializada/actualizada.")
     except psycopg2.Error as e: print(f"Error durante inicialización/actualización de DB: {e}"); conn.rollback()
     finally:
         if conn: conn.close()
 
-# Llamar a init_db() al inicio
-with app.app_context(): init_db()
+# --- LLAMAR init_db() AL INICIO ---
+# Esto asegura que las tablas existan antes de que lleguen las solicitudes.
+# Requiere que la base de datos esté disponible cuando el servidor arranca.
+with app.app_context():
+    init_db()
 
 # --- Funciones Auxiliares ---
 def add_history_db(message, conn):
-    """Agrega una entrada al historial simple en la base de datos."""
+    # ... (igual que antes) ...
     try:
         with conn.cursor() as cur:
             cur.execute("INSERT INTO history (message) VALUES (%s)", (message,))
@@ -125,11 +113,16 @@ def add_history_db(message, conn):
     except psycopg2.Error as e: print(f"Error añadiendo historial a DB: {e}"); return False
 
 # --- Rutas API ---
+# (Asegúrate de que todas las rutas desde /login hasta /api/remove/custom_combo
+#  estén aquí, usando la lógica adaptada para presas_total donde corresponda)
+# ... (Se omiten por brevedad, usar las de flask_backend_v17_delete_combo adaptadas) ...
+
 @app.route('/')
 def index(): return render_template('index.html')
 
 @app.route('/login', methods=['POST'])
 def login():
+    # ... (código igual que antes) ...
     req_data = request.get_json(); username = req_data.get('username'); password_attempt = req_data.get('password')
     if not username or not password_attempt: return jsonify({"success": False, "message": "Faltan datos."}), 400
     conn = get_db_connection(); user_info = None;
@@ -148,7 +141,6 @@ def login():
 
 @app.route('/api/inventory', methods=['GET'])
 def get_inventory():
-    """Devuelve inventario (total presas, productos), combos y presasPorPolloTotal."""
     conn = get_db_connection();
     if not conn: return jsonify({"success": False, "message": "Error DB (I1)."}), 500
     try:
@@ -187,7 +179,6 @@ def get_history():
     finally:
         if conn: conn.close()
 
-# --- RUTAS AGREGAR (Modificadas para Presa General) ---
 @app.route('/api/add/pollos', methods=['POST'])
 def add_pollos():
     req_data = request.get_json(); cantidad = req_data.get('quantity')
@@ -209,7 +200,7 @@ def add_pollos():
     finally:
         if conn: conn.close()
 
-@app.route('/api/add/presas_total', methods=['POST']) # Ruta cambiada
+@app.route('/api/add/presas_total', methods=['POST'])
 def add_presas_total():
     req_data = request.get_json(); cantidad = req_data.get('quantity')
     if not isinstance(cantidad, int) or cantidad <= 0: return jsonify({"success": False, "message": "Cantidad inválida."}), 400
@@ -251,7 +242,6 @@ def add_producto():
     finally:
         if conn: conn.close()
 
-# --- RUTA VENDER (Modificada para Presa General) ---
 @app.route('/api/sell', methods=['POST'])
 def sell_cart():
     req_data = request.get_json(); cart = req_data.get('cart')
@@ -261,7 +251,6 @@ def sell_cart():
     total_venta = Decimal('0.00'); items_para_db = []
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            # Cargar definiciones y stock actual
             cur.execute("SELECT value FROM definitions WHERE key = 'combos'")
             combos_def_json = cur.fetchone()['value'] if cur.rowcount > 0 else {}
             cur.execute("SELECT key, value_int, value_numeric FROM inventory_info WHERE key IN (%s, %s) FOR UPDATE", (PRESAS_KEY, PRESA_PRICE_KEY))
@@ -282,7 +271,7 @@ def sell_cart():
                     except InvalidOperation: print(f"Adv: Precio inválido combo {nombre}")
                     requerimientos['presas_total'] += combo_info.get('presas_necesarias', 0) * cantidad
                     for p, cR in combo_info.get('productos', {}).items(): requerimientos['productos'][p] = requerimientos['productos'].get(p, 0) + cR * cantidad
-                elif tipo == 'presa':
+                elif tipo == 'presa': # Venta de presa genérica
                     precio_unitario = presa_precio_default
                     requerimientos['presas_total'] += cantidad
                 elif tipo == 'producto':
@@ -293,7 +282,6 @@ def sell_cart():
                 total_venta += precio_unitario * cantidad
                 items_para_db.append({"type": tipo, "name": nombre, "display": display_name, "quantity": cantidad, "price": precio_unitario})
 
-            # Comprobar stock
             if current_presas_total < requerimientos['presas_total']:
                 stock_suficiente = False; items_faltantes.append(f"Presas({requerimientos['presas_total']}/{current_presas_total})")
             for p, cR in requerimientos['productos'].items():
@@ -301,7 +289,6 @@ def sell_cart():
 
             if not stock_suficiente: print(f"Venta fallida stock: {items_faltantes}"); conn.rollback(); return jsonify({"success": False, "message": f"Stock insuficiente: {', '.join(items_faltantes)}"}), 400
 
-            # Si hay stock, descontar e insertar venta/items
             print("Stock OK. Procesando venta en DB...")
             cur.execute("INSERT INTO sales (total_amount) VALUES (%s) RETURNING sale_id;", (total_venta,))
             sale_id = cur.fetchone()['sale_id']; print(f"Venta registrada ID: {sale_id}, Total: {total_venta}")
@@ -310,8 +297,11 @@ def sell_cart():
             print(f"Items de la venta {sale_id} registrados.")
             print("Descontando inventario...")
             if requerimientos['presas_total'] > 0:
-                cur.execute("UPDATE inventory_info SET value_int = value_int - %s WHERE key = %s", (requerimientos['presas_total'], PRESAS_KEY))
-            for p, cR in requerimientos['productos'].items(): cur.execute("UPDATE inventory_productos SET cantidad = cantidad - %s WHERE nombre_producto = %s", (cR, p))
+                cur.execute("UPDATE inventory_info SET value_int = value_int - %s WHERE key = %s AND value_int >= %s", (requerimientos['presas_total'], PRESAS_KEY, requerimientos['presas_total']))
+                if cur.rowcount == 0: raise psycopg2.Error("Fallo al descontar presas (stock insuficiente concurrente?)")
+            for p, cR in requerimientos['productos'].items():
+                cur.execute("UPDATE inventory_productos SET cantidad = cantidad - %s WHERE nombre_producto = %s AND cantidad >= %s", (cR, p, cR))
+                if cur.rowcount == 0: raise psycopg2.Error(f"Fallo al descontar producto {p} (stock insuficiente concurrente?)")
             print("Inventario descontado.")
             resumen_display = ', '.join([f"{item['cantidad']}x{item.get('display', item['nombre'])}" for item in cart]); total_venta_str = f"{total_venta:.2f}"
             log_msg = f"VENTA CARRITO (ID:{sale_id}, {len(cart)} items): {resumen_display}. Total: ${total_venta_str}"
@@ -323,7 +313,6 @@ def sell_cart():
     finally:
         if conn: conn.close()
 
-# --- RUTAS ELIMINAR (Modificadas para Presa General) ---
 @app.route('/api/remove/pollos', methods=['POST'])
 def remove_pollos():
     req_data = request.get_json(); cantidad = req_data.get('quantity')
@@ -344,6 +333,7 @@ def remove_pollos():
 
             cur.execute("UPDATE inventory_info SET value_int = value_int - %s WHERE key = 'pollosEnteros' AND value_int >= %s", (cantidad, cantidad))
             cur.execute("UPDATE inventory_info SET value_int = value_int - %s WHERE key = %s AND value_int >= %s", (presas_a_quitar, PRESAS_KEY, presas_a_quitar))
+            if cur.rowcount == 0: raise psycopg2.Error("Fallo al descontar presas (stock insuficiente concurrente?)")
 
             log_msg = f"ELIMINACIÓN: {cantidad} pollos enteros (merma, {presas_a_quitar} presas)."
             if not add_history_db(log_msg, conn): raise psycopg2.Error("Fallo al guardar historial")
@@ -376,7 +366,6 @@ def remove_presas_total():
 
 @app.route('/api/remove/producto', methods=['POST'])
 def remove_producto():
-    # ... (igual que antes) ...
     req_data = request.get_json(); nombre = req_data.get('name', '').strip().capitalize(); cantidad = req_data.get('quantity')
     if not nombre or not isinstance(cantidad, int) or cantidad <= 0: return jsonify({"success": False, "message": "Datos inválidos."}), 400
     conn = get_db_connection();
@@ -398,10 +387,8 @@ def remove_producto():
     finally:
         if conn: conn.close()
 
-# --- RUTA REPORTE (Sin cambios) ---
 @app.route('/api/reports/sales', methods=['GET'])
 def get_sales_report():
-    # ... (igual que antes) ...
     start_date_str = request.args.get('start_date'); end_date_str = request.args.get('end_date')
     start_date = None; end_date = None
     if start_date_str:
@@ -433,7 +420,6 @@ def get_sales_report():
     finally:
         if conn: conn.close()
 
-# --- RUTA ACTUALIZAR PRECIOS (Modificada para Presa General) ---
 @app.route('/api/update/price', methods=['POST'])
 def update_price():
     req_data = request.get_json(); item_type = req_data.get('item_type'); item_name = req_data.get('item_name'); new_price_str = req_data.get('new_price')
@@ -468,11 +454,8 @@ def update_price():
                 rowcount = cur.rowcount
                 log_msg = f"PRECIO ACTUALIZADO: Combo '{item_name}' a ${new_price}."
 
-            # Verificar si se encontró el item (excepto para presa general o combo donde rowcount puede ser 0 en UPDATE)
-            if rowcount == 0 and item_type == 'producto':
-                 conn.rollback(); return jsonify({"success": False, "message": f"Item '{item_name}' no encontrado."}), 404
-            if not log_msg: # Si no se asignó mensaje (caso combo update fallido?)
-                 conn.rollback(); return jsonify({"success": False, "message": f"Error al actualizar precio para {item_name}."}), 500
+            if rowcount == 0 and item_type == 'producto': conn.rollback(); return jsonify({"success": False, "message": f"Item '{item_name}' no encontrado."}), 404
+            if not log_msg: conn.rollback(); return jsonify({"success": False, "message": f"Error al actualizar precio para {item_name}."}), 500
 
             print(log_msg)
             if not add_history_db(log_msg, conn): raise psycopg2.Error("Fallo al guardar historial")
@@ -482,7 +465,6 @@ def update_price():
     finally:
         if conn: conn.close()
 
-# --- RUTA AÑADIR COMBO PERSONALIZADO (Modificada para Presa General) ---
 @app.route('/api/add/custom_combo', methods=['POST'])
 def add_custom_combo():
     req_data = request.get_json(); combo_name = req_data.get('name', '').strip(); combo_price_str = req_data.get('price'); items = req_data.get('items')
@@ -493,37 +475,27 @@ def add_custom_combo():
         if combo_price < 0: return jsonify({"success": False, "message": "Precio inválido."}), 400
         combo_price = combo_price.quantize(Decimal("0.01"))
     except (InvalidOperation, TypeError): return jsonify({"success": False, "message": "Formato precio inválido."}), 400
-
     normalized_name = re.sub(r'\s+', '_', combo_name.lower()); normalized_name = re.sub(r'[^\w-]', '', normalized_name); combo_key = f"custom_{normalized_name}"
     if not combo_key.replace('custom_', ''): return jsonify({"success": False, "message": "Nombre inválido."}), 400
-
-    # Estructura: presas_necesarias (int), productos (dict), precio (str)
-    new_combo_data = {"presas_necesarias": 0, "productos": {}, "precio": str(combo_price)}
-    valid_item_types = ['presa', 'producto']
-
+    new_combo_data = {"presas_necesarias": 0, "productos": {}, "precio": str(combo_price)}; valid_item_types = ['presa', 'producto']
     conn_check = get_db_connection();
     if not conn_check: return jsonify({"success": False, "message": "Error DB (CC_Check1)."}), 500
     try:
         with conn_check.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur_check:
-            # Solo necesitamos validar productos ahora
             cur_check.execute("SELECT nombre_producto FROM inventory_productos"); valid_productos = {row['nombre_producto'] for row in cur_check.fetchall()}
     except psycopg2.Error as e: print(f"Error DB validando items: {e}"); return jsonify({"success": False, "message": "Error interno (CC_Check2)."}), 500
     finally:
         if conn_check: conn_check.close()
-
     for item in items:
         item_type = item.get('type', '').lower(); item_name = item.get('name'); item_qty = item.get('quantity')
         if item_type not in valid_item_types or not item_name or not isinstance(item_qty, int) or item_qty <= 0: return jsonify({"success": False, "message": f"Item inválido: {item}"}), 400
         if item_type == 'presa':
-            # Ya no validamos 'name' para presa, solo sumamos cantidad
             new_combo_data['presas_necesarias'] += item_qty
         elif item_type == 'producto':
             item_name_cap = item_name.capitalize()
             if item_name_cap not in valid_productos: return jsonify({"success": False, "message": f"Producto '{item_name_cap}' no válido."}), 400
             new_combo_data['productos'][item_name_cap] = new_combo_data['productos'].get(item_name_cap, 0) + item_qty
-
     if new_combo_data['presas_necesarias'] == 0 and not new_combo_data['productos']: return jsonify({"success": False, "message": "Combo debe tener items."}), 400
-
     conn = get_db_connection();
     if not conn: return jsonify({"success": False, "message": "Error DB (CC1)."}), 500
     try:
@@ -541,10 +513,8 @@ def add_custom_combo():
     finally:
         if conn: conn.close()
 
-# --- RUTA ELIMINAR COMBO ---
 @app.route('/api/remove/custom_combo', methods=['POST'])
 def remove_custom_combo():
-    # ... (igual que antes) ...
     req_data = request.get_json(); combo_key = req_data.get('combo_key')
     if not combo_key or not combo_key.startswith('custom_'): return jsonify({"success": False, "message": "Clave inválida o no es personalizado."}), 400
     conn = get_db_connection();
@@ -566,7 +536,6 @@ def remove_custom_combo():
     except psycopg2.Error as e: print(f"Error DB remove_custom_combo: {e}"); conn.rollback(); return jsonify({"success": False, "message": "Error interno (RC2)."}), 500
     finally:
         if conn: conn.close()
-
 
 # --- Ejecutar la Aplicación ---
 if __name__ == '__main__':
