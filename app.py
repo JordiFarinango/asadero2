@@ -1,4 +1,4 @@
-# app.py - Backend Completo y Corregido
+# app.py - Backend Completo con SyntaxError Corregido y 'cantidad' consistente
 
 import os
 import json
@@ -556,12 +556,17 @@ def add_custom_combo():
     conn_check = get_db_connection();
     if not conn_check: return jsonify({"success": False, "message": "Error DB (CC_Check1)."}), 500
     try:
-        with conn_check.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur_check: cur.execute("SELECT nombre_producto FROM inventory_productos"); valid_productos = {row['nombre_producto'] for row in cur_check.fetchall()}
+        # CORREGIDO: Indentación y variable cur_check
+        with conn_check.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur_check:
+             cur_check.execute("SELECT nombre_producto FROM inventory_productos")
+             valid_productos = {row['nombre_producto'] for row in cur_check.fetchall()}
     except psycopg2.Error as e: print(f"Error DB validando items: {e}"); return jsonify({"success": False, "message": "Error interno (CC_Check2)."}), 500
     finally:
         if conn_check: conn_check.close()
     for item in items:
-        item_type = item.get('type', '').lower(); item_name = item.get('name'); item_qty = item.get('cantidad') # CORREGIDO: Usar 'cantidad'
+        item_type = item.get('type', '').lower(); item_name = item.get('name')
+        # CORREGIDO: Usar 'cantidad' consistentemente
+        item_qty = item.get('cantidad')
         if item_type not in valid_item_types or not item_name or not isinstance(item_qty, int) or item_qty <= 0: return jsonify({"success": False, "message": f"Item inválido en combo: {item}"}), 400
         if item_type == 'presa': new_combo_data['presas_necesarias'] += item_qty
         elif item_type == 'producto':
@@ -624,7 +629,8 @@ def get_pending_orders():
                         if isinstance(item, dict):
                           try: item['price'] = float(item.get('price', 0.0))
                           except (ValueError, TypeError): item['price'] = 0.0
-                          item['quantity'] = int(item.get('cantidad', 0)) # CORREGIDO: Usar 'cantidad'
+                          # CORREGIDO: Usar 'cantidad' consistentemente
+                          item['quantity'] = int(item.get('cantidad', 0))
                           items_list.append(item)
                         else: print(f"Advertencia: Item inválido (no dict) en orden {row['order_id']}: {item}")
                 except (json.JSONDecodeError, TypeError, ValueError) as json_err:
@@ -658,12 +664,3 @@ if __name__ == '__main__':
     debug_mode = os.environ.get('FLASK_DEBUG', 'False') == 'True'
     print(f"Iniciando servidor Flask. Puerto: {port}, Modo Debug: {debug_mode}")
     app.run(host='0.0.0.0', port=port, debug=debug_mode, use_reloader=debug_mode)
-
-```
-
-**Pasos Finales:**
-
-1.  **Reemplaza** el contenido de `app.py` con este código **completo**.
-2.  **Despliega** en Railway, asegurándote de que el despliegue sea exitoso y reiniciando el servicio.
-3.  **Prueba iniciar sesión.** El `SyntaxError` debería haber desaparecido y la aplicación debería iniciar correctamente.
-4.  **Prueba realizar una venta.** Ahora debería funcionar y descontar el inventario. Revisa los logs del backend si aún encuentras problemas, pero ahora deberían mostrar que la cantidad `1` se procesa correctamen
