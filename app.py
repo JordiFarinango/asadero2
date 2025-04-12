@@ -1018,10 +1018,4 @@ if __name__ == '__main__':
     app.run(host='0.0.0.0', port=port, debug=debug_mode, use_reloader=debug_mode)
 ```
 
-**Corrección Realizada:**
 
-* En la ruta `/api/sell`, dentro del bucle `for item in cart:`, la línea que obtiene la cantidad ahora es:
-    ```python
-    cantidad = item.get('cantidad') # Usa 'cantidad' (español)
-    ```
-    (Antes decía `item.get('quantity')`).
