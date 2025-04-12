@@ -16,7 +16,8 @@ app = Flask(__name__)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     print("¡ERROR FATAL! Variable de entorno DATABASE_URL no encontrada.")
-CORS(app, resources={r"/*": {"origins": "*"}}) # Considera restringir a tu URL de Netlify en producción
+# Configurar CORS - Considera restringir origins en producción
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # --- Constantes ---
 DEFAULT_PRESA_PRICE = Decimal("1.25") # Precio por defecto para una presa genérica
@@ -41,11 +42,23 @@ def init_db():
 
     try:
         with conn.cursor() as cur:
-            # Verificar/Crear todas las tablas
+            # Verificar/Crear Tablas
             print("Verificando tabla 'users'...")
-            cur.execute("CREATE TABLE IF NOT EXISTS users (username VARCHAR(80) PRIMARY KEY, password_hash VARCHAR(255) NOT NULL, role VARCHAR(50) NOT NULL);")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    username VARCHAR(80) PRIMARY KEY,
+                    password_hash VARCHAR(255) NOT NULL,
+                    role VARCHAR(50) NOT NULL
+                );
+            """)
             print("Verificando tabla 'inventory_productos'...")
-            cur.execute("CREATE TABLE IF NOT EXISTS inventory_productos (nombre_producto VARCHAR(100) PRIMARY KEY, cantidad INTEGER NOT NULL DEFAULT 0 CHECK (cantidad >= 0), precio NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (precio >= 0.00));")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS inventory_productos (
+                    nombre_producto VARCHAR(100) PRIMARY KEY,
+                    cantidad INTEGER NOT NULL DEFAULT 0 CHECK (cantidad >= 0),
+                    precio NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (precio >= 0.00)
+                );
+            """)
             cur.execute("ALTER TABLE inventory_productos ADD COLUMN IF NOT EXISTS precio NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (precio >= 0.00);")
             print("Verificando tabla 'inventory_info'...")
             cur.execute("CREATE TABLE IF NOT EXISTS inventory_info ( key VARCHAR(50) PRIMARY KEY, value_int INTEGER, value_numeric NUMERIC(10,2) );")
@@ -67,24 +80,26 @@ def init_db():
                     items JSONB NOT NULL
                 );
             """)
-            cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_pending_orders_status ON pending_orders (status);
-            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_pending_orders_status ON pending_orders (status);")
             cur.execute("DROP TABLE IF EXISTS inventory_presas;") # Eliminar tabla obsoleta
 
             # --- Insertar/Actualizar datos iniciales ---
+            # Usuarios
             cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s) ON CONFLICT (username) DO NOTHING;", ('admin', generate_password_hash("admin123"), 'admin'))
             cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s) ON CONFLICT (username) DO NOTHING;", ('venta', generate_password_hash("venta123"), 'vendedor'))
             cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s) ON CONFLICT (username) DO NOTHING;", ('cocina', generate_password_hash("cocina123"), 'cocinero'))
 
+            # Productos
             initial_productos = [('Papas', 0, Decimal('1.50')), ('Gaseosa', 0, Decimal('0.75')), ('Ají', 0, Decimal('0.50'))]
             for nombre, cant, precio in initial_productos:
                 cur.execute("INSERT INTO inventory_productos (nombre_producto, cantidad, precio) VALUES (%s, %s, %s) ON CONFLICT (nombre_producto) DO NOTHING;", (nombre, cant, precio))
 
+            # Info General
             cur.execute("INSERT INTO inventory_info (key, value_int) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;", ('pollosEnteros', 0))
             cur.execute("INSERT INTO inventory_info (key, value_int) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;", (PRESAS_KEY, 0))
             cur.execute("INSERT INTO inventory_info (key, value_numeric) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;", (PRESA_PRICE_KEY, DEFAULT_PRESA_PRICE))
 
+            # Definiciones
             initial_presas_por_pollo_total = 8
             cur.execute("INSERT INTO definitions (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
                         (PRESAS_PER_POLLO_KEY, json.dumps(initial_presas_por_pollo_total)))
@@ -94,21 +109,22 @@ def init_db():
                 "combo_1_2": { "presas_necesarias": 4, "productos": {}, "precio": "6.50" },
                 "combo_entero": { "presas_necesarias": initial_presas_por_pollo_total, "productos": {}, "precio": "12.00" }
             }
-            cur.execute("INSERT INTO definitions (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;", # No sobrescribir combos si ya existen
+            cur.execute("INSERT INTO definitions (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;",
                         (COMBOS_KEY, json.dumps(initial_combos)))
 
+            # Historial inicial
             cur.execute("SELECT COUNT(*) FROM history;")
             if cur.fetchone()[0] == 0:
                  ts = datetime.datetime.now(datetime.timezone.utc)
                  cur.execute("INSERT INTO history (timestamp, message) VALUES (%s, %s)", (ts, "Sistema inicializado con DB (presas generales y órdenes)."))
 
             conn.commit()
-            print("Base de datos inicializada/actualizada (con órdenes pendientes).")
+            print("Base de datos inicializada/actualizada.")
     except psycopg2.Error as e: print(f"Error durante inicialización/actualización de DB: {e}"); conn.rollback()
     finally:
         if conn: conn.close()
 
-# Llamar a init_db() al inicio
+# Llamar a init_db() al inicio para asegurar estructura
 with app.app_context():
     init_db()
 
@@ -248,8 +264,7 @@ def add_producto():
 
 @app.route('/api/sell', methods=['POST'])
 def sell_cart():
-    req_data = request.get_json(); cart = req_data.get('cart')
-    informar_cocinero = req_data.get('informar_cocinero', False) # Leer flag
+    req_data = request.get_json(); cart = req_data.get('cart'); informar_cocinero = req_data.get('informar_cocinero', False)
     if not isinstance(cart, list) or not cart: return jsonify({"success": False, "message": "Carrito inválido."}), 400
     conn = get_db_connection();
     if not conn: return jsonify({"success": False, "message": "Error DB (S1)."}), 500
@@ -299,9 +314,8 @@ def sell_cart():
             for p, cR in requerimientos['productos'].items():
                 cur.execute("UPDATE inventory_productos SET cantidad = cantidad - %s WHERE nombre_producto = %s AND cantidad >= %s", (cR, p, cR))
                 if cur.rowcount == 0: raise psycopg2.Error(f"Fallo al descontar producto {p}")
-            # --- Insertar en pending_orders si se indicó ---
             if informar_cocinero:
-                items_json = json.dumps(items_para_db) # Usar items_para_db que tiene precios como float
+                items_json = json.dumps(items_para_db)
                 cur.execute("INSERT INTO pending_orders (items) VALUES (%s);", (items_json,))
                 print(f"Orden enviada a cocina para venta ID: {sale_id}")
             resumen_display = ', '.join([f"{item['quantity']}x{item.get('display', item['nombre'])}" for item in cart]); total_venta_str = f"{total_venta:.2f}"
@@ -315,7 +329,6 @@ def sell_cart():
     finally:
         if conn: conn.close()
 
-# --- RUTAS ELIMINAR ---
 @app.route('/api/remove/pollos', methods=['POST'])
 def remove_pollos():
     req_data = request.get_json(); cantidad = req_data.get('quantity')
@@ -387,7 +400,6 @@ def remove_producto():
     finally:
         if conn: conn.close()
 
-# --- RUTA REPORTE ---
 @app.route('/api/reports/sales', methods=['GET'])
 def get_sales_report():
     start_date_str = request.args.get('start_date'); end_date_str = request.args.get('end_date')
@@ -421,7 +433,6 @@ def get_sales_report():
     finally:
         if conn: conn.close()
 
-# --- RUTA ACTUALIZAR PRECIOS ---
 @app.route('/api/update/price', methods=['POST'])
 def update_price():
     req_data = request.get_json(); item_type = req_data.get('item_type'); item_name = req_data.get('item_name'); new_price_str = req_data.get('new_price')
@@ -467,7 +478,6 @@ def update_price():
     finally:
         if conn: conn.close()
 
-# --- RUTAS COMBOS PERSONALIZADOS ---
 @app.route('/api/add/custom_combo', methods=['POST'])
 def add_custom_combo():
     req_data = request.get_json(); combo_name = req_data.get('name', '').strip(); combo_price_str = req_data.get('price'); items = req_data.get('items')
@@ -551,10 +561,20 @@ def get_pending_orders():
             cur.execute("SELECT order_id, timestamp, items FROM pending_orders WHERE status = 'pending' ORDER BY timestamp ASC")
             for row in cur.fetchall():
                 items_list = []
-                for item in row['items']:
-                    try: item['price'] = float(item.get('price', 0.0))
-                    except: item['price'] = 0.0
-                    items_list.append(item)
+                # Asegurarse que items sea un diccionario o lista antes de iterar
+                items_data = row['items'] if isinstance(row['items'], (dict, list)) else []
+                if isinstance(items_data, dict): # Si por alguna razón se guardó como dict, convertir a lista de un item? O manejar error? Asumamos lista
+                    items_data = [items_data]
+
+                for item in items_data:
+                    if isinstance(item, dict): # Verificar que cada item sea un diccionario
+                      try: item['price'] = float(item.get('price', 0.0))
+                      except: item['price'] = 0.0
+                      items_list.append(item)
+                    else:
+                        print(f"Advertencia: Item inválido encontrado en orden pendiente {row['order_id']}: {item}")
+
+
                 orders.append({ "order_id": row['order_id'], "timestamp": row['timestamp'].isoformat(), "items": items_list })
         return jsonify({"success": True, "orders": orders})
     except psycopg2.Error as e: print(f"Error DB get_pending_orders: {e}"); return jsonify({"success": False, "message": "Error interno (O2)."}), 500
@@ -584,4 +604,3 @@ def complete_order(order_id):
 if __name__ == '__main__':
     print("Iniciando servidor Flask para DESARROLLO LOCAL...")
     app.run(host='0.0.0.0', port=5000, debug=True)
-
