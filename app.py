@@ -1,11 +1,11 @@
-# app.py - Backend Completo con Flask, PostgreSQL, Presas Generales y Funciones Adicionales
+# app.py - Backend Completo con Flask, PostgreSQL, Presas Generales, Combos Personalizados y Rol Cocinero
 
 import os
 import json
 import datetime
 import psycopg2
 import psycopg2.extras
-import re
+import re # Para normalizar nombres de combos
 from decimal import Decimal, InvalidOperation
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
@@ -16,9 +16,7 @@ app = Flask(__name__)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     print("¡ERROR FATAL! Variable de entorno DATABASE_URL no encontrada.")
-# Configurar CORS - Permitir todos los orígenes por ahora (*)
-# En producción, reemplazar '*' con la URL de Netlify: "https://tu-sitio.netlify.app"
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*"}}) # Considera restringir a tu URL de Netlify en producción
 
 # --- Constantes ---
 DEFAULT_PRESA_PRICE = Decimal("1.25") # Precio por defecto para una presa genérica
@@ -30,122 +28,63 @@ COMBOS_KEY = 'combos' # Clave usada en tabla definitions
 # --- Conexión a Base de Datos ---
 def get_db_connection():
     """Establece conexión con la base de datos PostgreSQL."""
-    if not DATABASE_URL:
-        print("Intento de conexión DB fallido: DATABASE_URL no configurada.")
-        return None
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        # print("Conexión a DB establecida.") # Log opcional
-        return conn
-    except psycopg2.OperationalError as e:
-        print(f"Error conectando a la base de datos: {e}")
-        return None
+    if not DATABASE_URL: print("Intento de conexión DB fallido: DATABASE_URL no configurada."); return None
+    try: conn = psycopg2.connect(DATABASE_URL); return conn
+    except psycopg2.OperationalError as e: print(f"Error conectando a la base de datos: {e}"); return None
 
 # --- Inicialización de la Base de Datos ---
 def init_db():
     """Crea/Actualiza las tablas necesarias si no existen."""
-    print("Intentando inicializar/actualizar DB para Presa General...")
+    print("Intentando inicializar/actualizar DB (con rol cocinero)...")
     conn = get_db_connection()
-    if not conn:
-        print("No se pudo conectar a la DB para inicializar.")
-        return
+    if not conn: print("No se pudo conectar a la DB para inicializar."); return
 
     try:
         with conn.cursor() as cur:
-            # Crear tabla de usuarios
+            # Verificar/Crear todas las tablas
             print("Verificando tabla 'users'...")
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    username VARCHAR(80) PRIMARY KEY,
-                    password_hash VARCHAR(255) NOT NULL,
-                    role VARCHAR(50) NOT NULL
-                );
-            """)
-            # Crear tabla de productos
+            cur.execute("CREATE TABLE IF NOT EXISTS users (username VARCHAR(80) PRIMARY KEY, password_hash VARCHAR(255) NOT NULL, role VARCHAR(50) NOT NULL);")
             print("Verificando tabla 'inventory_productos'...")
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS inventory_productos (
-                    nombre_producto VARCHAR(100) PRIMARY KEY,
-                    cantidad INTEGER NOT NULL DEFAULT 0 CHECK (cantidad >= 0),
-                    precio NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (precio >= 0.00)
-                );
-            """)
-            # Asegurar columna precio en productos
-            cur.execute("""
-                ALTER TABLE inventory_productos ADD COLUMN IF NOT EXISTS precio NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (precio >= 0.00);
-            """)
-            # Crear tabla de info general
+            cur.execute("CREATE TABLE IF NOT EXISTS inventory_productos (nombre_producto VARCHAR(100) PRIMARY KEY, cantidad INTEGER NOT NULL DEFAULT 0 CHECK (cantidad >= 0), precio NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (precio >= 0.00));")
+            cur.execute("ALTER TABLE inventory_productos ADD COLUMN IF NOT EXISTS precio NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (precio >= 0.00);")
             print("Verificando tabla 'inventory_info'...")
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS inventory_info (
-                    key VARCHAR(50) PRIMARY KEY,
-                    value_int INTEGER,
-                    value_numeric NUMERIC(10,2)
-                );
-            """)
-            # Crear tabla de historial simple
+            cur.execute("CREATE TABLE IF NOT EXISTS inventory_info ( key VARCHAR(50) PRIMARY KEY, value_int INTEGER, value_numeric NUMERIC(10,2) );")
             print("Verificando tabla 'history'...")
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS history (
-                    id SERIAL PRIMARY KEY,
-                    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    message TEXT NOT NULL
-                );
-            """)
-            # Crear tabla de definiciones (combos, etc.)
+            cur.execute("CREATE TABLE IF NOT EXISTS history ( id SERIAL PRIMARY KEY, timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, message TEXT NOT NULL );")
             print("Verificando tabla 'definitions'...")
-            cur.execute("""
-                 CREATE TABLE IF NOT EXISTS definitions (
-                     key VARCHAR(50) PRIMARY KEY,
-                     value JSONB NOT NULL
-                 );
-             """)
-            # Crear tabla de ventas
+            cur.execute("CREATE TABLE IF NOT EXISTS definitions ( key VARCHAR(50) PRIMARY KEY, value JSONB NOT NULL );")
             print("Verificando tabla 'sales'...")
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS sales (
-                    sale_id SERIAL PRIMARY KEY,
-                    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    total_amount NUMERIC(10, 2) NOT NULL CHECK (total_amount >= 0.00)
-                );
-            """)
-            # Crear tabla de items de venta
+            cur.execute("CREATE TABLE IF NOT EXISTS sales (sale_id SERIAL PRIMARY KEY, timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, total_amount NUMERIC(10, 2) NOT NULL CHECK (total_amount >= 0.00));")
             print("Verificando tabla 'sale_items'...")
+            cur.execute("CREATE TABLE IF NOT EXISTS sale_items (item_id SERIAL PRIMARY KEY, sale_id INTEGER NOT NULL REFERENCES sales(sale_id) ON DELETE CASCADE, item_type VARCHAR(50) NOT NULL, item_name VARCHAR(100) NOT NULL, display_name VARCHAR(150), quantity INTEGER NOT NULL CHECK (quantity > 0), price_per_item NUMERIC(10, 2) NOT NULL CHECK (price_per_item >= 0.00));")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items (sale_id);")
+            print("Verificando tabla 'pending_orders'...")
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS sale_items (
-                    item_id SERIAL PRIMARY KEY,
-                    sale_id INTEGER NOT NULL REFERENCES sales(sale_id) ON DELETE CASCADE,
-                    item_type VARCHAR(50) NOT NULL, -- 'combo', 'producto', 'presa'
-                    item_name VARCHAR(100) NOT NULL, -- Clave interna o nombre
-                    display_name VARCHAR(150), -- Nombre legible
-                    quantity INTEGER NOT NULL CHECK (quantity > 0),
-                    price_per_item NUMERIC(10, 2) NOT NULL CHECK (price_per_item >= 0.00) -- Precio al vender
+                CREATE TABLE IF NOT EXISTS pending_orders (
+                    order_id SERIAL PRIMARY KEY,
+                    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    status VARCHAR(20) NOT NULL DEFAULT 'pending', -- 'pending', 'completed'
+                    items JSONB NOT NULL
                 );
             """)
-            # Crear índice para eficiencia
             cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items (sale_id);
+                CREATE INDEX IF NOT EXISTS idx_pending_orders_status ON pending_orders (status);
             """)
-            # Eliminar tabla obsoleta 'inventory_presas'
-            cur.execute("DROP TABLE IF EXISTS inventory_presas;")
-            print("Tabla obsoleta 'inventory_presas' eliminada si existía.")
+            cur.execute("DROP TABLE IF EXISTS inventory_presas;") # Eliminar tabla obsoleta
 
             # --- Insertar/Actualizar datos iniciales ---
-            # Usuarios
             cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s) ON CONFLICT (username) DO NOTHING;", ('admin', generate_password_hash("admin123"), 'admin'))
             cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s) ON CONFLICT (username) DO NOTHING;", ('venta', generate_password_hash("venta123"), 'vendedor'))
+            cur.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s) ON CONFLICT (username) DO NOTHING;", ('cocina', generate_password_hash("cocina123"), 'cocinero'))
 
-            # Productos
             initial_productos = [('Papas', 0, Decimal('1.50')), ('Gaseosa', 0, Decimal('0.75')), ('Ají', 0, Decimal('0.50'))]
             for nombre, cant, precio in initial_productos:
                 cur.execute("INSERT INTO inventory_productos (nombre_producto, cantidad, precio) VALUES (%s, %s, %s) ON CONFLICT (nombre_producto) DO NOTHING;", (nombre, cant, precio))
 
-            # Info General
             cur.execute("INSERT INTO inventory_info (key, value_int) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;", ('pollosEnteros', 0))
-            cur.execute("INSERT INTO inventory_info (key, value_int) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;", (PRESAS_KEY, 0)) # Total presas
-            cur.execute("INSERT INTO inventory_info (key, value_numeric) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;", (PRESA_PRICE_KEY, DEFAULT_PRESA_PRICE)) # Precio presa
+            cur.execute("INSERT INTO inventory_info (key, value_int) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;", (PRESAS_KEY, 0))
+            cur.execute("INSERT INTO inventory_info (key, value_numeric) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;", (PRESA_PRICE_KEY, DEFAULT_PRESA_PRICE))
 
-            # Definiciones
             initial_presas_por_pollo_total = 8
             cur.execute("INSERT INTO definitions (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
                         (PRESAS_PER_POLLO_KEY, json.dumps(initial_presas_por_pollo_total)))
@@ -155,17 +94,16 @@ def init_db():
                 "combo_1_2": { "presas_necesarias": 4, "productos": {}, "precio": "6.50" },
                 "combo_entero": { "presas_necesarias": initial_presas_por_pollo_total, "productos": {}, "precio": "12.00" }
             }
-            cur.execute("INSERT INTO definitions (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;",
+            cur.execute("INSERT INTO definitions (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING;", # No sobrescribir combos si ya existen
                         (COMBOS_KEY, json.dumps(initial_combos)))
 
-            # Historial inicial
             cur.execute("SELECT COUNT(*) FROM history;")
             if cur.fetchone()[0] == 0:
                  ts = datetime.datetime.now(datetime.timezone.utc)
-                 cur.execute("INSERT INTO history (timestamp, message) VALUES (%s, %s)", (ts, "Sistema inicializado con DB (presas generales)."))
+                 cur.execute("INSERT INTO history (timestamp, message) VALUES (%s, %s)", (ts, "Sistema inicializado con DB (presas generales y órdenes)."))
 
             conn.commit()
-            print("Base de datos inicializada/actualizada (con presas generales).")
+            print("Base de datos inicializada/actualizada (con órdenes pendientes).")
     except psycopg2.Error as e: print(f"Error durante inicialización/actualización de DB: {e}"); conn.rollback()
     finally:
         if conn: conn.close()
@@ -176,7 +114,6 @@ with app.app_context():
 
 # --- Funciones Auxiliares ---
 def add_history_db(message, conn):
-    """Agrega una entrada al historial simple en la base de datos."""
     try:
         with conn.cursor() as cur:
             cur.execute("INSERT INTO history (message) VALUES (%s)", (message,))
@@ -226,7 +163,7 @@ def get_inventory():
             combos_con_precio_float = {}
             for key, combo_data in combos_def.items():
                 try: combos_con_precio_float[key] = { "presas_necesarias": combo_data.get("presas_necesarias", 0), "productos": combo_data.get("productos", {}), "precio": float(combo_data.get("precio", "0.00")) }
-                except (ValueError, TypeError): combos_con_precio_float[key] = { "presas_necesarias": 0, "productos": {}, "precio": 0.00 }
+                except (ValueError, TypeError, AttributeError): combos_con_precio_float[key] = { "presas_necesarias": 0, "productos": {}, "precio": 0.00 }
             inventory_data = { "inventory": {"pollosEnteros": pollos_enteros, "presas_total": presas_total, "presa_precio_default": presa_precio, "productos": productos}, "combos": combos_con_precio_float, "presasPorPolloTotal": presas_por_pollo_total }
         return jsonify(inventory_data)
     except psycopg2.Error as e: print(f"Error DB get_inventory: {e}"); return jsonify({"success": False, "message": "Error interno (I2)."}), 500
@@ -240,7 +177,7 @@ def get_history():
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT timestamp, message FROM history ORDER BY timestamp DESC LIMIT 100")
-            history_list = [f"[{row[0].strftime('%Y-%m-%d %H:%M:%S')}] {row[1]}" for row in cur.fetchall()]
+            history_list = [f"[{row[0].strftime('%Y-%m-%d %H:%M:%S') if row[0] else 'TS N/A'}] {row[1]}" for row in cur.fetchall()]
         return jsonify({"history": history_list})
     except psycopg2.Error as e: print(f"Error DB get_history: {e}"); return jsonify({"success": False, "message": "Error interno (H2)."}), 500
     finally:
@@ -312,6 +249,7 @@ def add_producto():
 @app.route('/api/sell', methods=['POST'])
 def sell_cart():
     req_data = request.get_json(); cart = req_data.get('cart')
+    informar_cocinero = req_data.get('informar_cocinero', False) # Leer flag
     if not isinstance(cart, list) or not cart: return jsonify({"success": False, "message": "Carrito inválido."}), 400
     conn = get_db_connection();
     if not conn: return jsonify({"success": False, "message": "Error DB (S1)."}), 500
@@ -346,29 +284,30 @@ def sell_cart():
                     requerimientos['productos'][nombre] = requerimientos['productos'].get(nombre, 0) + cantidad
                 else: stock_suficiente = False; items_faltantes.append(f"Tipo? '{display_name}'")
                 total_venta += precio_unitario * cantidad
-                items_para_db.append({"type": tipo, "name": nombre, "display": display_name, "quantity": cantidad, "price": precio_unitario})
-            if current_presas_total < requerimientos['presas_total']:
-                stock_suficiente = False; items_faltantes.append(f"Presas({requerimientos['presas_total']}/{current_presas_total})")
+                items_para_db.append({"type": tipo, "name": nombre, "display": display_name, "quantity": cantidad, "price": float(precio_unitario)})
+            if current_presas_total < requerimientos['presas_total']: stock_suficiente = False; items_faltantes.append(f"Presas({requerimientos['presas_total']}/{current_presas_total})")
             for p, cR in requerimientos['productos'].items():
                  if current_productos.get(p, {}).get('cantidad', 0) < cR: stock_suficiente = False; items_faltantes.append(f"{p}({cR}/{current_productos.get(p, {}).get('cantidad', 0)})")
             if not stock_suficiente: print(f"Venta fallida stock: {items_faltantes}"); conn.rollback(); return jsonify({"success": False, "message": f"Stock insuficiente: {', '.join(items_faltantes)}"}), 400
-            print("Stock OK. Procesando venta en DB...")
             cur.execute("INSERT INTO sales (total_amount) VALUES (%s) RETURNING sale_id;", (total_venta,))
             sale_id = cur.fetchone()['sale_id']; print(f"Venta registrada ID: {sale_id}, Total: {total_venta}")
-            items_sql_data = [(sale_id, i['type'], i['name'], i['display'], i['quantity'], i['price']) for i in items_para_db]
+            items_sql_data = [(sale_id, i['type'], i['name'], i['display'], i['quantity'], Decimal(str(i['price']))) for i in items_para_db]
             cur.executemany("INSERT INTO sale_items (sale_id, item_type, item_name, display_name, quantity, price_per_item) VALUES (%s, %s, %s, %s, %s, %s)", items_sql_data)
-            print(f"Items de la venta {sale_id} registrados.")
-            print("Descontando inventario...")
             if requerimientos['presas_total'] > 0:
                 cur.execute("UPDATE inventory_info SET value_int = value_int - %s WHERE key = %s AND value_int >= %s", (requerimientos['presas_total'], PRESAS_KEY, requerimientos['presas_total']))
-                if cur.rowcount == 0: raise psycopg2.Error("Fallo al descontar presas (stock insuficiente concurrente?)")
+                if cur.rowcount == 0: raise psycopg2.Error("Fallo al descontar presas")
             for p, cR in requerimientos['productos'].items():
                 cur.execute("UPDATE inventory_productos SET cantidad = cantidad - %s WHERE nombre_producto = %s AND cantidad >= %s", (cR, p, cR))
-                if cur.rowcount == 0: raise psycopg2.Error(f"Fallo al descontar producto {p} (stock insuficiente concurrente?)")
-            print("Inventario descontado.")
-            resumen_display = ', '.join([f"{item['cantidad']}x{item.get('display', item['nombre'])}" for item in cart]); total_venta_str = f"{total_venta:.2f}"
+                if cur.rowcount == 0: raise psycopg2.Error(f"Fallo al descontar producto {p}")
+            # --- Insertar en pending_orders si se indicó ---
+            if informar_cocinero:
+                items_json = json.dumps(items_para_db) # Usar items_para_db que tiene precios como float
+                cur.execute("INSERT INTO pending_orders (items) VALUES (%s);", (items_json,))
+                print(f"Orden enviada a cocina para venta ID: {sale_id}")
+            resumen_display = ', '.join([f"{item['quantity']}x{item.get('display', item['nombre'])}" for item in cart]); total_venta_str = f"{total_venta:.2f}"
             log_msg = f"VENTA CARRITO (ID:{sale_id}, {len(cart)} items): {resumen_display}. Total: ${total_venta_str}"
-            if not add_history_db(log_msg, conn): raise psycopg2.Error("Fallo al guardar historial simple")
+            if informar_cocinero: log_msg += " [Enviado a Cocina]"
+            if not add_history_db(log_msg, conn): raise psycopg2.Error("Fallo al guardar historial")
             conn.commit(); print(f"Venta {sale_id} confirmada.")
             return jsonify({"success": True, "message": "Venta procesada!"})
     except psycopg2.Error as e: print(f"Error DB sell_cart: {e}"); conn.rollback(); return jsonify({"success": False, "message": "Error interno al vender (S2)."}), 500
@@ -376,6 +315,7 @@ def sell_cart():
     finally:
         if conn: conn.close()
 
+# --- RUTAS ELIMINAR ---
 @app.route('/api/remove/pollos', methods=['POST'])
 def remove_pollos():
     req_data = request.get_json(); cantidad = req_data.get('quantity')
@@ -394,7 +334,7 @@ def remove_pollos():
                 print(msg); conn.rollback(); return jsonify({"success": False, "message": msg}), 400
             cur.execute("UPDATE inventory_info SET value_int = value_int - %s WHERE key = 'pollosEnteros' AND value_int >= %s", (cantidad, cantidad))
             cur.execute("UPDATE inventory_info SET value_int = value_int - %s WHERE key = %s AND value_int >= %s", (presas_a_quitar, PRESAS_KEY, presas_a_quitar))
-            if cur.rowcount == 0: raise psycopg2.Error("Fallo al descontar presas (stock insuficiente concurrente?)")
+            if cur.rowcount == 0: raise psycopg2.Error("Fallo al descontar presas")
             log_msg = f"ELIMINACIÓN: {cantidad} pollos enteros (merma, {presas_a_quitar} presas)."
             if not add_history_db(log_msg, conn): raise psycopg2.Error("Fallo al guardar historial")
             conn.commit(); print(f"Eliminados {cantidad} pollos (merma).")
@@ -447,6 +387,7 @@ def remove_producto():
     finally:
         if conn: conn.close()
 
+# --- RUTA REPORTE ---
 @app.route('/api/reports/sales', methods=['GET'])
 def get_sales_report():
     start_date_str = request.args.get('start_date'); end_date_str = request.args.get('end_date')
@@ -480,6 +421,7 @@ def get_sales_report():
     finally:
         if conn: conn.close()
 
+# --- RUTA ACTUALIZAR PRECIOS ---
 @app.route('/api/update/price', methods=['POST'])
 def update_price():
     req_data = request.get_json(); item_type = req_data.get('item_type'); item_name = req_data.get('item_name'); new_price_str = req_data.get('new_price')
@@ -499,9 +441,9 @@ def update_price():
                 cur.execute("UPDATE inventory_productos SET precio = %s WHERE nombre_producto = %s", (new_price, item_name))
                 rowcount = cur.rowcount
                 if rowcount > 0: log_msg = f"PRECIO ACTUALIZADO: Producto '{item_name}' a ${new_price}."
-            elif item_type == 'presa': # Actualizar el precio default de presas
+            elif item_type == 'presa':
                 cur.execute("INSERT INTO inventory_info (key, value_numeric) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value_numeric = EXCLUDED.value_numeric;", (PRESA_PRICE_KEY, new_price))
-                rowcount = cur.rowcount # Devuelve 0 o 1
+                rowcount = cur.rowcount
                 log_msg = f"PRECIO ACTUALIZADO: Precio de Presa General a ${new_price}."
             elif item_type == 'combo':
                 cur.execute("SELECT value FROM definitions WHERE key = 'combos' FOR UPDATE")
@@ -525,6 +467,7 @@ def update_price():
     finally:
         if conn: conn.close()
 
+# --- RUTAS COMBOS PERSONALIZADOS ---
 @app.route('/api/add/custom_combo', methods=['POST'])
 def add_custom_combo():
     req_data = request.get_json(); combo_name = req_data.get('name', '').strip(); combo_price_str = req_data.get('price'); items = req_data.get('items')
@@ -597,7 +540,48 @@ def remove_custom_combo():
     finally:
         if conn: conn.close()
 
+# --- RUTAS PARA ÓRDENES DE COCINA ---
+@app.route('/api/orders/pending', methods=['GET'])
+def get_pending_orders():
+    conn = get_db_connection()
+    if not conn: return jsonify({"success": False, "message": "Error DB (O1)."}), 500
+    orders = []
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("SELECT order_id, timestamp, items FROM pending_orders WHERE status = 'pending' ORDER BY timestamp ASC")
+            for row in cur.fetchall():
+                items_list = []
+                for item in row['items']:
+                    try: item['price'] = float(item.get('price', 0.0))
+                    except: item['price'] = 0.0
+                    items_list.append(item)
+                orders.append({ "order_id": row['order_id'], "timestamp": row['timestamp'].isoformat(), "items": items_list })
+        return jsonify({"success": True, "orders": orders})
+    except psycopg2.Error as e: print(f"Error DB get_pending_orders: {e}"); return jsonify({"success": False, "message": "Error interno (O2)."}), 500
+    finally:
+        if conn: conn.close()
+
+@app.route('/api/orders/complete/<int:order_id>', methods=['POST'])
+def complete_order(order_id):
+    print(f"Recibida solicitud para completar orden ID: {order_id}")
+    conn = get_db_connection()
+    if not conn: return jsonify({"success": False, "message": "Error DB (OC1)."}), 500
+    try:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE pending_orders SET status = 'completed' WHERE order_id = %s AND status = 'pending'", (order_id,))
+            if cur.rowcount == 0:
+                conn.rollback(); print(f"Orden {order_id} no encontrada o no pendiente."); return jsonify({"success": False, "message": "Orden no encontrada o ya completada."}), 404
+            log_msg = f"COCINA: Orden ID:{order_id} marcada como terminada."
+            if not add_history_db(log_msg, conn): raise psycopg2.Error("Fallo al guardar historial")
+            conn.commit()
+            print(f"Orden {order_id} marcada como completada.")
+            return jsonify({"success": True, "message": f"Orden {order_id} completada."})
+    except psycopg2.Error as e: print(f"Error DB complete_order: {e}"); conn.rollback(); return jsonify({"success": False, "message": "Error interno (OC2)."}), 500
+    finally:
+        if conn: conn.close()
+
 # --- Ejecutar la Aplicación ---
 if __name__ == '__main__':
     print("Iniciando servidor Flask para DESARROLLO LOCAL...")
     app.run(host='0.0.0.0', port=5000, debug=True)
+
