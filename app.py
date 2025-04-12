@@ -1,4 +1,4 @@
-# app.py - Backend Completo con Flask, PostgreSQL, Presas Generales, Combos Personalizados y Rol Cocinero
+# app.py - Backend Completo Final (Corregido KeyError y con Rol Cocinero)
 
 import os
 import json
@@ -16,9 +16,7 @@ app = Flask(__name__)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if not DATABASE_URL:
     print("¡ERROR FATAL! Variable de entorno DATABASE_URL no encontrada.")
-# Configurar CORS - Permitir todos los orígenes por ahora (*)
-# En producción, reemplazar '*' con la URL de Netlify: "https://tu-sitio.netlify.app"
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*"}}) # Considera restringir a tu URL de Netlify en producción
 
 # --- Constantes ---
 DEFAULT_PRESA_PRICE = Decimal("1.25") # Precio por defecto para una presa genérica
@@ -102,7 +100,7 @@ def init_db():
             cur.execute("SELECT COUNT(*) FROM history;")
             if cur.fetchone()[0] == 0:
                  ts = datetime.datetime.now(datetime.timezone.utc)
-                 cur.execute("INSERT INTO history (timestamp, message) VALUES (%s, %s)", (ts, "Sistema inicializado."))
+                 cur.execute("INSERT INTO history (timestamp, message) VALUES (%s, %s)", (ts, "Sistema inicializado con DB (presas generales y órdenes)."))
 
             conn.commit()
             print("Base de datos inicializada/actualizada.")
@@ -116,7 +114,6 @@ with app.app_context():
 
 # --- Funciones Auxiliares ---
 def add_history_db(message, conn):
-    """Agrega una entrada al historial simple en la base de datos."""
     try:
         with conn.cursor() as cur:
             cur.execute("INSERT INTO history (message) VALUES (%s)", (message,))
@@ -557,14 +554,19 @@ def get_pending_orders():
             cur.execute("SELECT order_id, timestamp, items, nota FROM pending_orders WHERE status = 'pending' ORDER BY timestamp ASC")
             for row in cur.fetchall():
                 items_list = []
-                items_data = row['items'] if isinstance(row['items'], (dict, list)) else []
-                if isinstance(items_data, dict): items_data = [items_data]
-                for item in items_data:
-                    if isinstance(item, dict):
-                      try: item['price'] = float(item.get('price', 0.0))
-                      except: item['price'] = 0.0
-                      items_list.append(item)
-                    else: print(f"Advertencia: Item inválido en orden pendiente {row['order_id']}: {item}")
+                try:
+                    items_data = row['items']
+                    if isinstance(items_data, str): items_data = json.loads(items_data)
+                    if not isinstance(items_data, list): items_data = []
+                    for item in items_data:
+                        if isinstance(item, dict):
+                          try: item['price'] = float(item.get('price', 0.0))
+                          except (ValueError, TypeError): item['price'] = 0.0
+                          items_list.append(item)
+                        else: print(f"Advertencia: Item inválido en orden {row['order_id']}: {item}")
+                except (json.JSONDecodeError, TypeError) as json_err:
+                     print(f"Error parseando JSON de items para orden {row['order_id']}: {json_err}")
+                     items_list.append({"display": "Error al cargar items", "quantity": 1, "type": "error"})
                 orders.append({ "order_id": row['order_id'], "timestamp": row['timestamp'].isoformat(), "items": items_list, "nota": row['nota'] })
         return jsonify({"success": True, "orders": orders})
     except psycopg2.Error as e: print(f"Error DB get_pending_orders: {e}"); return jsonify({"success": False, "message": "Error interno (O2)."}), 500
@@ -594,4 +596,3 @@ def complete_order(order_id):
 if __name__ == '__main__':
     print("Iniciando servidor Flask para DESARROLLO LOCAL...")
     app.run(host='0.0.0.0', port=5000, debug=True)
-
