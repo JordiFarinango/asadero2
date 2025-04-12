@@ -1,4 +1,4 @@
-# app.py - Backend con Logging Mejorado para Depuración
+# app.py - Backend con Verificación Adicional de Cantidad y Logging
 
 import os
 import json
@@ -483,7 +483,7 @@ def add_producto():
             print(f"Conexión a DB cerrada (add_producto {nombre}).")
 
 
-# --- RUTA DE VENTA (SELL) - CON LOGGING DETALLADO ---
+# --- RUTA DE VENTA (SELL) - CON LOGGING DETALLADO Y VERIFICACIÓN EXTRA ---
 @app.route('/api/sell', methods=['POST'])
 def sell_cart():
     print("\n--- Iniciando procesamiento de venta ---")
@@ -503,6 +503,9 @@ def sell_cart():
         return jsonify({"success": False, "message": "Carrito inválido o vacío."}), 400
 
     print(f"Carrito recibido: {len(cart)} items. Informar cocina: {informar_cocinero}. Nota: '{nota_cocinero}'")
+    # Log detallado del carrito recibido
+    print(f"Contenido crudo del carrito recibido: {json.dumps(cart)}")
+
 
     conn = get_db_connection()
     if not conn:
@@ -541,21 +544,37 @@ def sell_cart():
             print("Calculando requerimientos y total de la venta...")
             # 3. Calcular requerimientos y total
             for item_index, item in enumerate(cart):
+                # Validar que 'item' sea un diccionario
+                if not isinstance(item, dict):
+                    print(f"    Error: Item {item_index+1} en carrito no es un diccionario válido: {item}. Saltando item.")
+                    items_faltantes.append(f"Item inválido en posición {item_index+1}")
+                    stock_suficiente = False
+                    continue
+
                 tipo = item.get('tipo')
                 nombre = item.get('nombre')
-                cantidad = item.get('quantity') # Frontend debe asegurar que sea int > 0
+                cantidad = item.get('quantity') # Obtener cantidad del item
                 display_name = item.get('display', nombre) # Nombre para mostrar
-                precio_unitario = Decimal('0.00')
+
+                # --- VERIFICACIÓN ADICIONAL Y LOGGING ---
+                if cantidad is None:
+                    # Imprimir alerta y datos crudos si la cantidad es None
+                    print(f"    ¡ALERTA! Cantidad recibida como None para item '{nombre}'. Raw item data: {item}")
+                # --- FIN VERIFICACIÓN ADICIONAL ---
 
                 print(f"  Procesando item {item_index+1}/{len(cart)}: {cantidad} x '{nombre}' (Tipo: {tipo}, Display: '{display_name}')")
 
+                # VALIDACIÓN DE CANTIDAD (ahora después del log de alerta)
                 if not isinstance(cantidad, int) or cantidad <= 0:
-                    print(f"    Error: Cantidad inválida ({cantidad}) para item '{nombre}'. Saltando item.")
+                    print(f"    Error: Cantidad inválida ({cantidad}, tipo: {type(cantidad).__name__}) para item '{nombre}'. Saltando item.")
                     items_faltantes.append(f"Cantidad inválida para '{display_name}'")
-                    stock_suficiente = False
+                    stock_suficiente = False # Marcar como insuficiente si la cantidad es inválida
                     continue # Saltar al siguiente item del carrito
 
+                # --- Resto del procesamiento del item (igual que antes) ---
+                precio_unitario = Decimal('0.00')
                 if tipo == 'combo':
+                    # ... (código para procesar combo) ...
                     if nombre not in combos_def_json:
                         print(f"    Error: Combo '{nombre}' no encontrado en definiciones.")
                         items_faltantes.append(f"Combo '{display_name}' no definido")
@@ -575,7 +594,7 @@ def sell_cart():
                         print(f"    Precio unitario combo: {precio_unitario}")
                     except InvalidOperation:
                         print(f"    Advertencia: Precio inválido ('{precio_str}') para combo '{nombre}'. Usando 0.00.")
-                        precio_unitario = Decimal('0.00') # Usar 0 si el precio está mal formado
+                        precio_unitario = Decimal('0.00')
 
                     presas_req_combo = int(combo_info.get('presas_necesarias', 0)) * cantidad
                     requerimientos['presas_total'] += presas_req_combo
@@ -591,11 +610,13 @@ def sell_cart():
                          print(f"    Advertencia: 'productos' en combo '{nombre}' no es un diccionario.")
 
                 elif tipo == 'presa':
+                     # ... (código para procesar presa) ...
                     precio_unitario = presa_precio_default.quantize(Decimal("0.01"))
                     requerimientos['presas_total'] += cantidad
                     print(f"    Requiere {cantidad} presas (generales). Precio unitario: {precio_unitario}")
 
                 elif tipo == 'producto':
+                     # ... (código para procesar producto) ...
                     if nombre not in current_productos:
                         print(f"    Error: Producto '{nombre}' no encontrado en inventario.")
                         items_faltantes.append(f"Producto '{display_name}' no existe")
@@ -612,10 +633,11 @@ def sell_cart():
                     print(f"    Requiere {cantidad} x '{nombre}'.")
 
                 else:
+                    # ... (código para tipo desconocido) ...
                     print(f"    Error: Tipo de item desconocido '{tipo}' para '{nombre}'.")
                     items_faltantes.append(f"Tipo desconocido '{display_name}'")
                     stock_suficiente = False
-                    continue # Saltar item desconocido
+                    continue
 
                 # Añadir al total y a la lista para DB (solo si no hubo error con este item)
                 item_total = precio_unitario * cantidad
@@ -628,34 +650,36 @@ def sell_cart():
                     "price": float(precio_unitario) # Convertir a float para JSON/historial
                 })
                 print(f"    Subtotal item: {item_total:.2f}. Total acumulado: {total_venta:.2f}")
+            # --- Fin del loop de items del carrito ---
 
             print(f"\nRequerimientos totales calculados: Presas={requerimientos['presas_total']}, Productos={requerimientos['productos']}")
             print(f"Total Venta Calculado: {total_venta:.2f}")
 
-            # 4. Verificar Stock Globalmente
+            # 4. Verificar Stock Globalmente (ahora incluye la bandera 'stock_suficiente' de la validación de cantidad)
             print("Verificando stock suficiente...")
             if current_presas_total < requerimientos['presas_total']:
-                stock_suficiente = False
+                stock_suficiente = False # Marcar como insuficiente si faltan presas
                 items_faltantes.append(f"Presas (Req: {requerimientos['presas_total']} / Disp: {current_presas_total})")
                 print(f"  Faltan presas: Req={requerimientos['presas_total']}, Disp={current_presas_total}")
 
             for p_req, c_req in requerimientos['productos'].items():
                  stock_disponible_prod = current_productos.get(p_req, {}).get('cantidad', 0)
                  if stock_disponible_prod < c_req:
-                     stock_suficiente = False
+                     stock_suficiente = False # Marcar como insuficiente si faltan productos
                      items_faltantes.append(f"{p_req} (Req: {c_req} / Disp: {stock_disponible_prod})")
                      print(f"  Falta producto '{p_req}': Req={c_req}, Disp={stock_disponible_prod}")
 
-            # 5. Si no hay stock, rollback y salir
+            # 5. Si no hay stock O si la cantidad fue inválida antes, rollback y salir
             if not stock_suficiente:
-                error_msg = f"Stock insuficiente: {', '.join(items_faltantes)}"
+                # Construir mensaje de error final
+                error_msg = f"Stock insuficiente: {', '.join(items_faltantes)}" if items_faltantes else "Error en los datos del carrito."
                 print(f"Error final: {error_msg}")
                 conn.rollback() # ¡Importante hacer rollback!
-                print("ROLLBACK realizado por stock insuficiente.")
+                print("ROLLBACK realizado por stock insuficiente o cantidad inválida.")
                 return jsonify({"success": False, "message": error_msg}), 400
 
-            # --- Si hay stock, proceder con la venta ---
-            print("Stock suficiente. Procediendo a registrar venta y descontar inventario...")
+            # --- Si hay stock y cantidad es válida, proceder con la venta ---
+            print("Stock suficiente y cantidades válidas. Procediendo a registrar venta y descontar inventario...")
 
             # 6. Insertar Venta Principal
             cur.execute("INSERT INTO sales (total_amount) VALUES (%s) RETURNING sale_id;", (total_venta,))
@@ -771,14 +795,353 @@ def sell_cart():
 
 
 # --- Rutas REMOVE, REPORTS, UPDATE PRICE, CUSTOM COMBOS, ORDERS (sin cambios mayores) ---
-# (Incluye el código de las otras rutas aquí, similar a como estaba antes)
+# (Asegúrate de incluir el código completo de las otras rutas aquí)
 # ... (Código de /api/remove/* , /api/reports/sales, /api/update/price, etc.) ...
-# Asegúrate de incluir todas las demás rutas que tenías
+@app.route('/api/remove/pollos', methods=['POST'])
+def remove_pollos():
+    req_data = request.get_json(); cantidad = req_data.get('quantity')
+    if not isinstance(cantidad, int) or cantidad <= 0: return jsonify({"success": False, "message": "Cantidad inválida."}), 400
+    conn = get_db_connection();
+    if not conn: return jsonify({"success": False, "message": "Error DB (RPo1)."}), 500
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("SELECT value FROM definitions WHERE key = %s", (PRESAS_PER_POLLO_KEY,))
+            result = cur.fetchone(); presas_pp = result['value'] if result and isinstance(result['value'], int) else 8
+            presas_a_quitar = cantidad * presas_pp
+            cur.execute("SELECT value_int FROM inventory_info WHERE key = %s FOR UPDATE", (PRESAS_KEY,))
+            result = cur.fetchone(); current_presas_total = result['value_int'] if result else 0
+            cur.execute("SELECT value_int FROM inventory_info WHERE key = 'pollosEnteros' FOR UPDATE",)
+            result_pollos = cur.fetchone(); current_pollos = result_pollos['value_int'] if result_pollos else 0
+
+            if current_presas_total < presas_a_quitar or current_pollos < cantidad:
+                msg = f"Stock insuficiente. Disp: {current_pollos} pollos, {current_presas_total} presas. Req quitar: {cantidad} pollos ({presas_a_quitar} presas)."
+                print(msg); conn.rollback(); return jsonify({"success": False, "message": msg}), 400
+
+            cur.execute("UPDATE inventory_info SET value_int = value_int - %s WHERE key = 'pollosEnteros' AND value_int >= %s", (cantidad, cantidad))
+            if cur.rowcount == 0: raise psycopg2.Error("Fallo al descontar pollos")
+            cur.execute("UPDATE inventory_info SET value_int = value_int - %s WHERE key = %s AND value_int >= %s", (presas_a_quitar, PRESAS_KEY, presas_a_quitar))
+            if cur.rowcount == 0: raise psycopg2.Error("Fallo al descontar presas asociadas a pollos")
+
+            log_msg = f"ELIMINACIÓN: {cantidad} pollos enteros (merma, {presas_a_quitar} presas)."
+            if not add_history_db(log_msg, conn): print("Advertencia: Fallo al guardar historial para remove_pollos.")
+            conn.commit(); print(f"Eliminados {cantidad} pollos (merma).")
+            return jsonify({"success": True, "message": f"{cantidad} pollos eliminados." })
+    except psycopg2.Error as e: print(f"Error DB remove_pollos: {e}"); conn.rollback(); return jsonify({"success": False, "message": "Error al eliminar pollos (RPo2)."}), 500
+    finally:
+        if conn: conn.close()
+
+@app.route('/api/remove/presas_total', methods=['POST'])
+def remove_presas_total():
+    req_data = request.get_json(); cantidad = req_data.get('quantity')
+    if not isinstance(cantidad, int) or cantidad <= 0: return jsonify({"success": False, "message": "Cantidad inválida."}), 400
+    conn = get_db_connection();
+    if not conn: return jsonify({"success": False, "message": "Error DB (RPrT1)."}), 500
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("UPDATE inventory_info SET value_int = value_int - %s WHERE key = %s AND value_int >= %s RETURNING value_int", (cantidad, PRESAS_KEY, cantidad))
+            result = cur.fetchone()
+            if result is None:
+                 cur.execute("SELECT value_int FROM inventory_info WHERE key = %s", (PRESAS_KEY,))
+                 stock_actual = cur.fetchone(); stock_disp = stock_actual['value_int'] if stock_actual else 0
+                 msg = f"Stock insuficiente de presas (Disp: {stock_disp}, Req: {cantidad})"; conn.rollback(); return jsonify({"success": False, "message": msg}), 400
+
+            log_msg = f"ELIMINACIÓN: {cantidad} presas generales (merma). Stock restante: {result['value_int']}."
+            if not add_history_db(log_msg, conn): print("Advertencia: Fallo al guardar historial para remove_presas_total.")
+            conn.commit(); print(f"Eliminadas {cantidad} presas generales (merma).")
+            return jsonify({"success": True, "message": f"{cantidad} presas eliminadas." })
+    except psycopg2.Error as e: print(f"Error DB remove_presas_total: {e}"); conn.rollback(); return jsonify({"success": False, "message": "Error al eliminar presas (RPrT2)."}), 500
+    finally:
+        if conn: conn.close()
+
+@app.route('/api/remove/producto', methods=['POST'])
+def remove_producto():
+    req_data = request.get_json(); nombre = req_data.get('name', '').strip().capitalize(); cantidad = req_data.get('quantity')
+    if not nombre or not isinstance(cantidad, int) or cantidad <= 0: return jsonify({"success": False, "message": "Datos inválidos."}), 400
+    conn = get_db_connection();
+    if not conn: return jsonify({"success": False, "message": "Error DB (RPd1)."}), 500
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("UPDATE inventory_productos SET cantidad = cantidad - %s WHERE nombre_producto = %s AND cantidad >= %s RETURNING cantidad", (cantidad, nombre, cantidad))
+            result = cur.fetchone()
+            if result is None:
+                cur.execute("SELECT cantidad FROM inventory_productos WHERE nombre_producto = %s", (nombre,))
+                stock_actual = cur.fetchone(); stock_disp = stock_actual['cantidad'] if stock_actual else 0
+                msg = f"Stock insuf. o producto '{nombre}' no existe (Disp: {stock_disp}, Req: {cantidad})"; conn.rollback(); return jsonify({"success": False, "message": msg}), 400
+            stock_restante = result['cantidad']
+            log_msg = f"ELIMINACIÓN PRODUCTO: {cantidad} {nombre} (merma). Stock restante: {stock_restante}."
+            if not add_history_db(log_msg, conn): print(f"Advertencia: Fallo al guardar historial para remove_producto '{nombre}'.")
+            conn.commit(); print(f"Eliminado producto: {cantidad} x {nombre} (merma).")
+            return jsonify({"success": True, "message": f"{cantidad} '{nombre}' eliminados." })
+    except psycopg2.Error as e: print(f"Error DB remove_producto: {e}"); conn.rollback(); return jsonify({"success": False, "message": "Error al eliminar producto (RPd2)."}), 500
+    finally:
+        if conn: conn.close()
+
+@app.route('/api/reports/sales', methods=['GET'])
+def get_sales_report():
+    start_date_str = request.args.get('start_date'); end_date_str = request.args.get('end_date')
+    start_date = None; end_date = None
+    if start_date_str:
+        try: start_date = datetime.datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        except ValueError: return jsonify({"success": False, "message": "Formato fecha inicial inválido."}), 400
+    if end_date_str:
+        try:
+            # Ajustar end_date para incluir todo el día
+            end_dt = datetime.datetime.strptime(end_date_str, '%Y-%m-%d')
+            end_date = datetime.datetime.combine(end_dt.date(), datetime.time.max) # Fin del día
+        except ValueError: return jsonify({"success": False, "message": "Formato fecha final inválido."}), 400
+
+    conn = get_db_connection();
+    if not conn: return jsonify({"success": False, "message": "Error DB (R1)."}), 500
+    sales_list = []
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            sql = """
+                SELECT s.sale_id, s.timestamp, s.total_amount,
+                       si.item_type, si.display_name, si.quantity, si.price_per_item
+                FROM sales s JOIN sale_items si ON s.sale_id = si.sale_id
+            """
+            params = []; conditions = []
+            if start_date: conditions.append("s.timestamp >= %s"); params.append(start_date)
+            if end_date: conditions.append("s.timestamp <= %s"); params.append(end_date)
+            if conditions: sql += " WHERE " + " AND ".join(conditions)
+            sql += " ORDER BY s.timestamp DESC, s.sale_id DESC, si.item_id ASC;" # Ordenar por fecha, luego ID, luego item
+
+            cur.execute(sql, tuple(params)); results = cur.fetchall()
+
+            # Agrupar items por venta
+            sales_dict = {}
+            for row in results:
+                sale_id = row['sale_id']
+                if sale_id not in sales_dict:
+                    sales_dict[sale_id] = {
+                        "sale_id": sale_id,
+                        "timestamp": row['timestamp'].isoformat(), # Usar ISO para consistencia
+                        "total_amount": float(row['total_amount']),
+                        "items": []
+                    }
+                sales_dict[sale_id]['items'].append({
+                    "type": row['item_type'],
+                    "name": row['display_name'], # Usar display_name para el reporte
+                    "quantity": row['quantity'],
+                    "price": float(row['price_per_item'])
+                })
+            sales_list = list(sales_dict.values())
+        return jsonify({"success": True, "sales": sales_list})
+    except psycopg2.Error as e: print(f"Error DB get_sales_report: {e}"); return jsonify({"success": False, "message": "Error interno (R2)."}), 500
+    finally:
+        if conn: conn.close()
+
+@app.route('/api/update/price', methods=['POST'])
+def update_price():
+    req_data = request.get_json(); item_type = req_data.get('item_type'); item_name = req_data.get('item_name'); new_price_str = req_data.get('new_price')
+    if not item_type or new_price_str is None or (item_type != 'presa' and not item_name): return jsonify({"success": False, "message": "Faltan datos."}), 400
+    if item_type not in ['producto', 'combo', 'presa']: return jsonify({"success": False, "message": "Tipo inválido."}), 400
+    try:
+        new_price = Decimal(str(new_price_str))
+        if new_price < 0: return jsonify({"success": False, "message": "Precio negativo."}), 400
+        new_price = new_price.quantize(Decimal("0.01"))
+    except InvalidOperation: return jsonify({"success": False, "message": "Formato precio inválido."}), 400
+    conn = get_db_connection();
+    if not conn: return jsonify({"success": False, "message": "Error DB (UP1)."}), 500
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            log_msg = ""; rowcount = -1; item_display = item_name # Para log
+
+            if item_type == 'producto':
+                cur.execute("UPDATE inventory_productos SET precio = %s WHERE nombre_producto = %s", (new_price, item_name))
+                rowcount = cur.rowcount
+                if rowcount > 0: log_msg = f"PRECIO ACTUALIZADO: Producto '{item_name}' a ${new_price}."
+            elif item_type == 'presa':
+                # item_name debería ser PRESA_PRICE_KEY enviado desde el frontend
+                cur.execute("INSERT INTO inventory_info (key, value_numeric) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value_numeric = EXCLUDED.value_numeric;", (PRESA_PRICE_KEY, new_price))
+                rowcount = 1 # INSERT ON CONFLICT siempre afecta 1 fila o ninguna (si falla)
+                log_msg = f"PRECIO ACTUALIZADO: Precio de Presa General a ${new_price}."
+                item_display = "Presa General"
+            elif item_type == 'combo':
+                cur.execute("SELECT value FROM definitions WHERE key = 'combos' FOR UPDATE")
+                result = cur.fetchone()
+                if not result: conn.rollback(); return jsonify({"success": False, "message": "Definición combos no encontrada."}), 404
+                combos_dict = result['value']
+                if item_name not in combos_dict: conn.rollback(); return jsonify({"success": False, "message": f"Combo '{item_name}' no encontrado."}), 404
+
+                # Actualizar precio en el diccionario/JSON
+                combos_dict[item_name]['precio'] = str(new_price) # Guardar como string en JSON
+                cur.execute("UPDATE definitions SET value = %s WHERE key = 'combos'", (json.dumps(combos_dict),))
+                rowcount = cur.rowcount
+                log_msg = f"PRECIO ACTUALIZADO: Combo '{item_name}' a ${new_price}."
+                # item_display se queda como item_name (la clave)
+
+            if rowcount == 0 and item_type == 'producto': # Solo para producto, combo/presa manejan diferente
+                conn.rollback(); return jsonify({"success": False, "message": f"Producto '{item_name}' no encontrado."}), 404
+            if not log_msg: # Si no se generó mensaje, algo falló
+                 conn.rollback(); return jsonify({"success": False, "message": f"Error desconocido al actualizar precio para {item_display}."}), 500
+
+            print(log_msg)
+            if not add_history_db(log_msg, conn): print(f"Advertencia: Fallo al guardar historial para update_price '{item_display}'.")
+            conn.commit()
+            return jsonify({"success": True, "message": log_msg})
+    except psycopg2.Error as e: print(f"Error DB update_price: {e}"); conn.rollback(); return jsonify({"success": False, "message": "Error interno (UP2)."}), 500
+    finally:
+        if conn: conn.close()
+
+@app.route('/api/add/custom_combo', methods=['POST'])
+def add_custom_combo():
+    req_data = request.get_json(); combo_name = req_data.get('name', '').strip(); combo_price_str = req_data.get('price'); items = req_data.get('items')
+    if not combo_name: return jsonify({"success": False, "message": "Nombre requerido."}), 400
+    if not isinstance(items, list) or not items: return jsonify({"success": False, "message": "Items requeridos."}), 400
+    try:
+        combo_price = Decimal(str(combo_price_str));
+        if combo_price < 0: return jsonify({"success": False, "message": "Precio inválido."}), 400
+        combo_price = combo_price.quantize(Decimal("0.01"))
+    except (InvalidOperation, TypeError): return jsonify({"success": False, "message": "Formato precio inválido."}), 400
+
+    # Normalizar nombre para usar como clave interna
+    normalized_name = re.sub(r'\s+', '_', combo_name.lower()); normalized_name = re.sub(r'[^\w-]', '', normalized_name); combo_key = f"custom_{normalized_name}"
+    if not combo_key.replace('custom_', ''): return jsonify({"success": False, "message": "Nombre inválido (solo letras, números, guiones bajos)."}), 400
+
+    new_combo_data = {"presas_necesarias": 0, "productos": {}, "precio": str(combo_price)}; valid_item_types = ['presa', 'producto']
+
+    # Validar items contra productos existentes
+    conn_check = get_db_connection();
+    if not conn_check: return jsonify({"success": False, "message": "Error DB (CC_Check1)."}), 500
+    try:
+        with conn_check.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur_check:
+            cur_check.execute("SELECT nombre_producto FROM inventory_productos"); valid_productos = {row['nombre_producto'] for row in cur_check.fetchall()}
+    except psycopg2.Error as e: print(f"Error DB validando items: {e}"); return jsonify({"success": False, "message": "Error interno (CC_Check2)."}), 500
+    finally:
+        if conn_check: conn_check.close()
+
+    # Procesar items del combo
+    for item in items:
+        item_type = item.get('type', '').lower(); item_name = item.get('name'); item_qty = item.get('quantity')
+        if item_type not in valid_item_types or not item_name or not isinstance(item_qty, int) or item_qty <= 0: return jsonify({"success": False, "message": f"Item inválido en combo: {item}"}), 400
+        if item_type == 'presa':
+            new_combo_data['presas_necesarias'] += item_qty
+        elif item_type == 'producto':
+            # Usar nombre capitalizado como en el resto de la app
+            item_name_cap = item_name.capitalize()
+            if item_name_cap not in valid_productos: return jsonify({"success": False, "message": f"Producto '{item_name_cap}' no es válido o no existe."}), 400
+            new_combo_data['productos'][item_name_cap] = new_combo_data['productos'].get(item_name_cap, 0) + item_qty
+
+    if new_combo_data['presas_necesarias'] == 0 and not new_combo_data['productos']: return jsonify({"success": False, "message": "El combo debe contener al menos una presa o un producto."}), 400
+
+    # Guardar el combo
+    conn = get_db_connection();
+    if not conn: return jsonify({"success": False, "message": "Error DB (CC1)."}), 500
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("SELECT value FROM definitions WHERE key = 'combos' FOR UPDATE")
+            result = cur.fetchone(); combos_dict = result['value'] if result else {}
+            if combo_key in combos_dict: conn.rollback(); return jsonify({"success": False, "message": f"Ya existe un combo con un nombre similar ('{combo_key}'). Use otro nombre."}), 400
+
+            combos_dict[combo_key] = new_combo_data
+            cur.execute("INSERT INTO definitions (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;", ('combos', json.dumps(combos_dict)))
+
+            log_msg = f"COMBO PERSONALIZADO AÑADIDO: '{combo_name}' (ID: {combo_key}, Precio: ${combo_price})."
+            if not add_history_db(log_msg, conn): print("Advertencia: Fallo al guardar historial para add_custom_combo.")
+            conn.commit(); print(log_msg)
+            return jsonify({"success": True, "message": f"Combo '{combo_name}' añadido."})
+    except psycopg2.Error as e: print(f"Error DB add_custom_combo: {e}"); conn.rollback(); return jsonify({"success": False, "message": "Error interno (CC2)."}), 500
+    finally:
+        if conn: conn.close()
+
+@app.route('/api/remove/custom_combo', methods=['POST'])
+def remove_custom_combo():
+    req_data = request.get_json(); combo_key = req_data.get('combo_key')
+    if not combo_key or not combo_key.startswith('custom_'): return jsonify({"success": False, "message": "Clave inválida o no es personalizado."}), 400
+    conn = get_db_connection();
+    if not conn: return jsonify({"success": False, "message": "Error DB (RC1)."}), 500
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("SELECT value FROM definitions WHERE key = 'combos' FOR UPDATE")
+            result = cur.fetchone()
+            if not result: conn.rollback(); return jsonify({"success": False, "message": "Definición combos no encontrada."}), 404
+            combos_dict = result['value']
+            if combo_key not in combos_dict: conn.rollback(); return jsonify({"success": False, "message": f"Combo '{combo_key}' no encontrado."}), 404
+
+            combo_name_display = combo_key.replace('custom_', '').replace('_', ' ').capitalize()
+            del combos_dict[combo_key]; print(f"Combo '{combo_key}' eliminado del diccionario.")
+
+            cur.execute("UPDATE definitions SET value = %s WHERE key = 'combos'", (json.dumps(combos_dict),))
+
+            log_msg = f"COMBO PERSONALIZADO ELIMINADO: '{combo_name_display}' (ID: {combo_key})."
+            if not add_history_db(log_msg, conn): print("Advertencia: Fallo al guardar historial para remove_custom_combo.")
+            conn.commit(); print(log_msg)
+            return jsonify({"success": True, "message": f"Combo '{combo_name_display}' eliminado."})
+    except psycopg2.Error as e: print(f"Error DB remove_custom_combo: {e}"); conn.rollback(); return jsonify({"success": False, "message": "Error interno (RC2)."}), 500
+    finally:
+        if conn: conn.close()
+
+
+@app.route('/api/orders/pending', methods=['GET'])
+def get_pending_orders():
+    conn = get_db_connection()
+    if not conn: return jsonify({"success": False, "message": "Error DB (O1)."}), 500
+    orders = []
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute("SELECT order_id, timestamp, items, nota FROM pending_orders WHERE status = 'pending' ORDER BY timestamp ASC")
+            for row in cur.fetchall():
+                items_list = []
+                try:
+                    # Intentar parsear items, asegurando que sea una lista
+                    items_data = row['items']
+                    if isinstance(items_data, str): items_data = json.loads(items_data) # Parsear si es string
+                    if not isinstance(items_data, list): items_data = [] # Default a lista vacía si no es lista
+
+                    # Validar cada item dentro de la lista
+                    for item in items_data:
+                        if isinstance(item, dict):
+                          # Intentar convertir precio a float, default a 0.0 si falla
+                          try: item['price'] = float(item.get('price', 0.0))
+                          except (ValueError, TypeError): item['price'] = 0.0
+                          items_list.append(item)
+                        else:
+                            # Loggear advertencia si un item no es diccionario
+                            print(f"Advertencia: Item inválido (no es dict) en orden {row['order_id']}: {item}")
+                except (json.JSONDecodeError, TypeError) as json_err:
+                     # Loggear error si falla el parseo JSON inicial
+                     print(f"Error parseando JSON de items para orden {row['order_id']}: {json_err}")
+                     items_list.append({"display": "Error al cargar items", "quantity": 1, "type": "error", "price": 0.0})
+
+                orders.append({
+                    "order_id": row['order_id'],
+                    "timestamp": row['timestamp'].isoformat(), # Usar ISO 8601
+                    "items": items_list,
+                    "nota": row['nota'] # Nota puede ser None
+                 })
+        return jsonify({"success": True, "orders": orders})
+    except psycopg2.Error as e: print(f"Error DB get_pending_orders: {e}"); return jsonify({"success": False, "message": "Error interno (O2)."}), 500
+    finally:
+        if conn: conn.close()
+
+@app.route('/api/orders/complete/<int:order_id>', methods=['POST'])
+def complete_order(order_id):
+    print(f"Recibida solicitud para completar orden ID: {order_id}")
+    conn = get_db_connection()
+    if not conn: return jsonify({"success": False, "message": "Error DB (OC1)."}), 500
+    try:
+        with conn.cursor() as cur:
+            # Actualizar solo si está pendiente
+            cur.execute("UPDATE pending_orders SET status = 'completed' WHERE order_id = %s AND status = 'pending'", (order_id,))
+            if cur.rowcount == 0:
+                conn.rollback(); print(f"Orden {order_id} no encontrada o no pendiente."); return jsonify({"success": False, "message": "Orden no encontrada o ya completada."}), 404
+
+            log_msg = f"COCINA: Orden ID:{order_id} marcada como terminada."
+            if not add_history_db(log_msg, conn): print(f"Advertencia: Fallo al guardar historial para complete_order {order_id}.")
+            conn.commit()
+            print(f"Orden {order_id} marcada como completada.")
+            return jsonify({"success": True, "message": f"Orden {order_id} completada."})
+    except psycopg2.Error as e: print(f"Error DB complete_order: {e}"); conn.rollback(); return jsonify({"success": False, "message": "Error interno (OC2)."}), 500
+    finally:
+        if conn: conn.close()
 
 # --- Ejecutar la Aplicación ---
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000)) # Usar PORT de Railway o default 5000
-    print(f"Iniciando servidor Flask en MODO DEBUG LOCAL (o producción si PORT está definido)...")
-    # debug=True es útil localmente, pero desactívalo en producción real por seguridad y rendimiento
-    # Railway generalmente maneja el modo de ejecución a través de Gunicorn/variables de entorno
-    app.run(host='0.0.0.0', port=port, debug=os.environ.get('FLASK_DEBUG', 'False') == 'True')
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False') == 'True'
+    print(f"Iniciando servidor Flask. Puerto: {port}, Modo Debug: {debug_mode}")
+    # Pasar debug=debug_mode a app.run()
+    # use_reloader=False es a menudo necesario en entornos de producción o contenedores
+    app.run(host='0.0.0.0', port=port, debug=debug_mode, use_reloader=debug_mode)
+
