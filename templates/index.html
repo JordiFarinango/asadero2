@@ -5,32 +5,54 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🐔 Sistema de Inventario - Asadero</title>
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        /* ... (Estilos sin cambios) ... */
+        /* Estilos generales */
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
-        .tab-button { padding: 0.75rem 1.5rem; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.3s ease; font-weight: 500; color: #4b5563; display: inline-flex; align-items: center; }
+        /* Estilos para Tabs */
+        .tab-button { padding: 0.75rem 1.5rem; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.3s ease; font-weight: 500; color: #4b5563; display: inline-flex; align-items: center; white-space: nowrap; }
         .tab-button:hover { background-color: #e5e7eb; border-bottom-color: #9ca3af; }
         .tab-button.active { border-bottom-color: #4f46e5; color: #4f46e5; font-weight: 600; }
         .tab-button.disabled { color: #9ca3af; cursor: not-allowed; background-color: transparent !important; border-bottom-color: transparent !important; }
-        .tab-content { display: none; }
+        .tab-content { display: none; animation: fadeIn 0.5s; }
         .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        /* Estilos para Botones y Cards */
         button { transition: all 0.2s ease-in-out; }
         button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         button:disabled { opacity: 0.6; cursor: not-allowed; }
         .card { background-color: white; border-radius: 0.75rem; padding: 1.5rem; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); margin-bottom: 1.5rem; }
+        /* Iconos y Feedback */
         .icon { width: 1.25rem; height: 1.25rem; display: inline-block; vertical-align: middle; margin-right: 0.5rem; }
-        .feedback { padding: 0.75rem 1rem; border-radius: 0.5rem; margin-top: 1.5rem; font-size: 0.875rem; display: none; position: fixed; bottom: 1rem; right: 1rem; background-color: white; z-index: 50; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        .feedback-success { background-color: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+        .feedback { padding: 0.75rem 1rem; border-radius: 0.5rem; margin-top: 1.5rem; font-size: 0.875rem; display: none; position: fixed; bottom: 1rem; right: 1rem; background-color: white; z-index: 50; box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: slideInUp 0.3s ease-out; }
+        .feedback-success { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
         .feedback-error { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+        @keyframes slideInUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        /* Pantalla de Login */
         #login-screen { max-width: 400px; margin: 5rem auto; padding: 2rem; background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        /* Clases Utilitarias */
         .hidden { display: none; }
+        /* Estilos Carrito */
         .cart-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid #e5e7eb; }
         .cart-item:last-child { border-bottom: none; }
         .cart-remove-btn { background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.25rem; }
         .cart-remove-btn:hover { color: #dc2626; }
         .cart-total { text-align: right; font-size: 1.1rem; font-weight: bold; margin-top: 1rem; padding-top: 0.5rem; border-top: 1px solid #ccc; }
+        /* Estilos Reportes */
+        .report-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        .report-table th, .report-table td { border: 1px solid #e5e7eb; padding: 0.5rem 0.75rem; text-align: left; font-size: 0.875rem; }
+        .report-table th { background-color: #f3f4f6; font-weight: 600; }
+        .report-table ul { margin: 0; padding-left: 1rem; list-style: disc; }
+        .report-table li { margin-bottom: 0.25rem; }
+        /* Estilos Constructor Combos */
+        .combo-builder-item { display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; padding: 0.25rem 0; }
+        .delete-combo-list-btn { background: none; border: none; color: #ef4444; cursor: pointer; padding: 0.1rem; margin-left: 0.5rem; opacity: 0.7; }
+        .delete-combo-list-btn:hover { opacity: 1; color: #dc2626; }
+         /* Estilos Órdenes Cocina */
+        .order-card { border: 1px solid #d1d5db; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; background-color: #f9fafb; }
+        .order-card ul { list-style: none; padding: 0; margin-top: 0.5rem; }
+        .order-card li { margin-bottom: 0.25rem; }
+        .order-note { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed #e5e7eb; font-style: italic; color: #4b5563; font-size: 0.875rem; }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -38,99 +60,408 @@
     <div id="login-screen">
         <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Iniciar Sesión</h2>
         <form id="login-form" onsubmit="handleLogin(event)">
-            <div class="mb-4"> <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Usuario</label> <input type="text" id="username" name="username" required class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="admin / venta"> </div>
-            <div class="mb-6"> <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label> <input type="password" id="password" name="password" required class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Contraseña"> </div>
-            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium flex items-center justify-center"> <i data-lucide="log-in" class="icon"></i> Ingresar </button>
+            <div class="mb-4">
+                <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
+                <input type="text" id="username" name="username" required class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="admin / venta / cocina">
+            </div>
+            <div class="mb-6">
+                <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                <input type="password" id="password" name="password" required class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Contraseña">
+            </div>
+            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium flex items-center justify-center">
+                <i data-lucide="log-in" class="icon"></i> Ingresar
+            </button>
             <p id="login-error" class="text-red-600 text-sm mt-3 text-center hidden">Usuario o contraseña incorrectos.</p>
         </form>
     </div>
 
     <div id="main-app" class="hidden">
-        <header class="mb-6 flex justify-between items-center">
-            <div class="text-center flex-grow"> <h1 class="text-3xl md:text-4xl font-bold text-gray-800">🐔 Sistema de Inventario - Asadero</h1> <p class="text-gray-600 mt-1">Gestión de pollos, presas y productos</p> </div>
-             <div class="flex items-center space-x-4"> <span id="user-info" class="text-sm text-gray-600"></span> <button id="logout-button" onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap"> <i data-lucide="log-out" class="w-4 h-4 mr-1"></i> Salir </button> </div>
+        <header class="mb-6 flex justify-between items-center flex-wrap">
+            <div class="text-center flex-grow mb-4 sm:mb-0">
+                <h1 class="text-3xl md:text-4xl font-bold text-gray-800">🐔 Sistema de Inventario - Asadero</h1>
+                <p class="text-gray-600 mt-1">Gestión de inventario y ventas</p>
+            </div>
+             <div class="flex items-center space-x-4">
+                <span id="user-info" class="text-sm text-gray-600"></span>
+                <button id="logout-button" onclick="handleLogout()" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap">
+                    <i data-lucide="log-out" class="w-4 h-4 mr-1"></i> Salir
+                </button>
+             </div>
         </header>
 
-        <div class="mb-6 flex justify-between items-center border-b border-gray-200 bg-white rounded-lg shadow-sm pr-4">
-            <nav id="tabs-nav" class="-mb-px flex space-x-4 px-4 overflow-x-auto" aria-label="Tabs"> <button class="tab-button" onclick="showTab('venta')" data-tab="venta"> <i data-lucide="shopping-cart" class="icon"></i>Ventas </button> <button class="tab-button" onclick="showTab('inventario')" data-tab="inventario"> <i data-lucide="clipboard-list" class="icon"></i>Inventario </button> <button class="tab-button" onclick="showTab('gestion')" data-tab="gestion"> <i data-lucide="settings" class="icon"></i>Gestión </button> <button class="tab-button" onclick="showTab('historial')" data-tab="historial"> <i data-lucide="history" class="icon"></i>Historial </button> </nav>
-            <button id="refresh-button" onclick="refreshData()" title="Actualizar Datos" class="ml-4 p-2 text-gray-500 hover:text-blue-600 hover:bg-gray-100 rounded-full"> <i data-lucide="refresh-cw" class="w-5 h-5"></i> </button>
+        <div class="mb-6 flex justify-between items-center border-b border-gray-200 bg-white rounded-lg shadow-sm pr-4 sticky top-0 z-10">
+             <nav id="tabs-nav" class="-mb-px flex space-x-1 sm:space-x-4 px-2 sm:px-4 overflow-x-auto" aria-label="Tabs">
+                <button class="tab-button" onclick="showTab('venta')" data-tab="venta"> <i data-lucide="shopping-cart" class="icon"></i>Ventas </button>
+                <button class="tab-button" onclick="showTab('inventario')" data-tab="inventario"> <i data-lucide="clipboard-list" class="icon"></i>Inventario </button>
+                <button class="tab-button" onclick="showTab('gestion')" data-tab="gestion"> <i data-lucide="settings" class="icon"></i>Gestión </button>
+                <button class="tab-button" onclick="showTab('combos')" data-tab="combos"> <i data-lucide="wand-2" class="icon"></i>Personalizar </button>
+                <button class="tab-button" onclick="showTab('cocina')" data-tab="cocina"> <i data-lucide="chef-hat" class="icon"></i>Cocina </button>
+                <button class="tab-button" onclick="showTab('historial')" data-tab="historial"> <i data-lucide="history" class="icon"></i>Historial </button>
+                <button class="tab-button" onclick="showTab('reportes')" data-tab="reportes"> <i data-lucide="bar-chart-2" class="icon"></i>Reportes </button>
+            </nav>
+            <button id="refresh-button" onclick="refreshData()" title="Actualizar Datos" class="ml-4 p-2 text-gray-500 hover:text-blue-600 hover:bg-gray-100 rounded-full flex-shrink-0">
+                <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+            </button>
         </div>
 
-
         <div id="tab-content-container">
+
             <div id="tab-venta" class="tab-content">
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div class="lg:col-span-2">
                         <div class="card">
-                            <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center"> <i data-lucide="plus-circle" class="icon text-blue-600"></i>Añadir Items a la Venta </h2>
+                            <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center"> <i data-lucide="plus-circle" class="icon text-blue-600"></i>Añadir Items al Carrito</h2>
                             <div class="space-y-4">
-                                <div class="p-3 border rounded-md bg-gray-50"> <label for="sell-combo-tipo" class="block text-sm font-medium text-gray-700 mb-1">Combo:</label> <div class="flex flex-wrap sm:flex-nowrap space-y-2 sm:space-y-0 sm:space-x-2 items-center"> <select id="sell-combo-tipo" class="block w-full sm:w-auto flex-grow rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select> <input type="number" id="sell-combo-cantidad" min="1" value="1" class="block w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant."> <button onclick="agregarComboAlCarrito()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap justify-center w-full sm:w-auto"> <i data-lucide="shopping-cart" class="w-4 h-4 mr-1"></i> Añadir </button> </div> </div>
-                                <div class="p-3 border rounded-md bg-gray-50"> <label for="sell-presas-tipo" class="block text-sm font-medium text-gray-700 mb-1">Presas:</label> <div class="flex flex-wrap sm:flex-nowrap space-y-2 sm:space-y-0 sm:space-x-2 items-center"> <select id="sell-presas-tipo" class="block w-full sm:w-auto flex-grow rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"> <option value="pechuga">Pechuga</option> <option value="muslo">Muslo</option> <option value="ala">Ala</option> <option value="pierna">Pierna</option> </select> <input type="number" id="sell-presas-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant."> <button onclick="agregarPresasAlCarrito()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center justify-center w-full sm:w-auto"> <i data-lucide="shopping-cart" class="w-4 h-4 mr-1"></i> Add </button> </div> </div>
-                                <div class="p-3 border rounded-md bg-gray-50"> <label for="sell-producto-nombre" class="block text-sm font-medium text-gray-700 mb-1">Producto:</label> <div class="flex flex-wrap sm:flex-nowrap space-y-2 sm:space-y-0 sm:space-x-2 items-center"> <select id="sell-producto-nombre" class="block w-full sm:w-auto flex-grow rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select> <input type="number" id="sell-producto-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant."> <button onclick="agregarProductoAlCarrito()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center justify-center w-full sm:w-auto"> <i data-lucide="shopping-cart" class="w-4 h-4 mr-1"></i> Add </button> </div> </div>
+                                <div class="p-3 border rounded-md bg-gray-50">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Añadir Combo:</label>
+                                    <div class="flex flex-wrap sm:flex-nowrap space-y-2 sm:space-y-0 sm:space-x-2 items-center">
+                                        <select id="sell-combo-tipo" class="block w-full sm:w-auto flex-grow rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select>
+                                        <input type="number" id="sell-combo-cantidad" min="1" value="1" class="block w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant.">
+                                        <button onclick="agregarComboAlCarrito()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap justify-center w-full sm:w-auto">
+                                            <i data-lucide="shopping-cart" class="w-4 h-4 mr-1"></i> Añadir
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="p-3 border rounded-md bg-gray-50">
+                                     <label class="block text-sm font-medium text-gray-700 mb-1">Añadir Producto:</label>
+                                     <div class="flex flex-wrap sm:flex-nowrap space-y-2 sm:space-y-0 sm:space-x-2 items-center">
+                                        <select id="sell-producto-nombre" class="block w-full sm:w-auto flex-grow rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select>
+                                        <input type="number" id="sell-producto-cantidad" min="1" value="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant.">
+                                        <button onclick="agregarProductoAlCarrito()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center justify-center w-full sm:w-auto">
+                                            <i data-lucide="shopping-cart" class="w-4 h-4 mr-1"></i> Añadir
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="p-3 border rounded-md bg-gray-50">
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Añadir Presas (Generales):</label>
+                                    <div class="flex flex-wrap sm:flex-nowrap space-y-2 sm:space-y-0 sm:space-x-2 items-center">
+                                        <span class="text-sm text-gray-600 mr-2">Precio c/u: $<span id="presa-default-price-display-add">?.??</span></span>
+                                        <input type="number" id="add-presa-general-cantidad" min="1" value="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant.">
+                                        <button onclick="agregarPresasGeneralesAlCarrito()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center justify-center w-full sm:w-auto">
+                                            <i data-lucide="shopping-cart" class="w-4 h-4 mr-1"></i> Añadir Presas
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                     <div class="lg:col-span-1">
-                         <div class="card sticky top-4"> <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center"> <i data-lucide="shopping-bag" class="icon text-green-600"></i>Carrito de Venta </h2> <div id="carrito-display" class="mb-4 min-h-[100px] max-h-[40vh] overflow-y-auto"> <ul id="carrito-lista" class="space-y-1 text-sm"> <li class="italic text-gray-400">El carrito está vacío.</li> </ul> </div>
-                         <div id="carrito-total" class="cart-total">Total: $0.00</div>
-                         <button id="vender-carrito-btn" onclick="procesarVentaCarrito()" class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium flex items-center justify-center" disabled> <i data-lucide="receipt" class="w-4 h-4 mr-1"></i> Vender Carrito (<span id="carrito-total-items">0</span>) </button> </div>
+                        <div class="card sticky top-20"> <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                                <i data-lucide="shopping-bag" class="icon text-green-600"></i>Carrito de Venta
+                            </h2>
+                            <div id="carrito-display" class="mb-4 min-h-[100px] max-h-[40vh] overflow-y-auto">
+                                <ul id="carrito-lista" class="space-y-1 text-sm">
+                                    <li class="italic text-gray-400">El carrito está vacío.</li>
+                                </ul>
+                            </div>
+                            <div id="carrito-total" class="cart-total">Total: $0.00</div>
+                            <div class="mt-4">
+                                <label for="nota-cocinero-input" class="block text-sm font-medium text-gray-700">Nota para Cocina (Opcional):</label>
+                                <input type="text" id="nota-cocinero-input" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Ej: Sin ají, extra papas...">
+                            </div>
+                            <div class="mt-2 flex items-center">
+                                <input id="informar-cocinero-checkbox" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" onchange="guardarPreferenciaCocinero()">
+                                <label for="informar-cocinero-checkbox" class="ml-2 block text-sm text-gray-900">Informar a Cocina</label>
+                            </div>
+                            <button id="vender-carrito-btn" onclick="procesarVentaCarrito()" class="w-full mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium flex items-center justify-center" disabled>
+                                <i data-lucide="receipt" class="w-4 h-4 mr-1"></i> Vender Carrito (<span id="carrito-total-items">0</span>)
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <div id="tab-inventario" class="tab-content">
-                 <div class="card"> <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center"> <i data-lucide="clipboard-list" class="icon text-purple-600"></i>Estado Actual del Inventario </h2> <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"> <div class="md:col-span-1"> <h3 class="text-lg font-medium text-gray-600 mb-2">Presas Disponibles</h3> <ul id="lista-presas" class="space-y-1 text-gray-700"></ul> <p class="text-sm text-gray-500 mt-2">Pollos equivalentes: <span id="pollos-equivalentes" class="font-semibold">0</span></p> </div> <div class="md:col-span-1"> <h3 class="text-lg font-medium text-gray-600 mb-2">Productos Adicionales</h3> <ul id="lista-productos" class="space-y-1 text-gray-700"></ul> </div> <div class="md:col-span-1"> <h3 class="text-lg font-medium text-gray-600 mb-2">Gráfico Presas</h3> <div class="relative h-64"> <canvas id="inventoryChart"></canvas> </div> </div> </div> </div>
+                 <div class="card">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                        <i data-lucide="clipboard-list" class="icon text-purple-600"></i>Estado Actual del Inventario
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <h3 class="text-lg font-medium text-gray-600 mb-2">Inventario General</h3>
+                            <ul id="lista-presas" class="space-y-1 text-gray-700">
+                                <li class="italic text-gray-400">Cargando...</li>
+                            </ul>
+                            <p class="text-sm text-gray-500 mt-2">Pollos equivalentes estimados: <span id="pollos-equivalentes" class="font-semibold">0</span></p>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-medium text-gray-600 mb-2">Productos Adicionales</h3>
+                            <ul id="lista-productos" class="space-y-1 text-gray-700">
+                                 <li class="italic text-gray-400">Cargando...</li>
+                            </ul>
+                        </div>
+                    </div>
+                 </div>
             </div>
 
             <div id="tab-gestion" class="tab-content">
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="card">
-                        <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center"> <i data-lucide="package-plus" class="icon text-blue-600"></i>Agregar Inventario </h2>
+                        <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                            <i data-lucide="package-plus" class="icon text-blue-600"></i>Agregar Inventario
+                        </h2>
                         <div class="space-y-4">
-                            <div> <label for="add-pollos-cantidad" class="block text-sm font-medium text-gray-700">Pollos Enteros:</label> <div class="flex space-x-2 mt-1"> <input type="number" id="add-pollos-cantidad" name="add-pollos" min="1" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cantidad"> <button onclick="agregarPollos()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Agregar </button> </div> </div>
-                            <div> <label for="add-presas-tipo" class="block text-sm font-medium text-gray-700">Presas Individuales:</label> <div class="flex space-x-2 mt-1"> <select id="add-presas-tipo" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"> <option value="pechuga">Pechuga</option> <option value="muslo">Muslo</option> <option value="ala">Ala</option> <option value="pierna">Pierna</option> </select> <input type="number" id="add-presas-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant."> <button onclick="agregarPresas()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Add </button> </div> </div>
-                            <div> <label for="add-producto-nombre" class="block text-sm font-medium text-gray-700">Producto Adicional:</label>
+                            <div>
+                                <label for="add-pollos-cantidad" class="block text-sm font-medium text-gray-700">Pollos Enteros:</label>
+                                <div class="flex space-x-2 mt-1">
+                                    <input type="number" id="add-pollos-cantidad" name="add-pollos" min="1" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cantidad">
+                                    <button onclick="agregarPollos()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap">
+                                        <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Agregar
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="add-presas-cantidad" class="block text-sm font-medium text-gray-700">Presas Generales (Total):</label>
+                                <div class="flex space-x-2 mt-1">
+                                    <input type="number" id="add-presas-cantidad" min="1" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant. a agregar">
+                                    <button onclick="agregarPresas()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap">
+                                        <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Agregar
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label for="add-producto-nombre" class="block text-sm font-medium text-gray-700">Producto Adicional:</label>
                                 <div class="flex flex-wrap sm:flex-nowrap space-y-2 sm:space-y-0 sm:space-x-2 mt-1">
                                     <input type="text" id="add-producto-nombre" class="block w-full sm:w-auto flex-grow rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Nombre">
                                     <input type="number" id="add-producto-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant.">
                                     <input type="number" id="add-producto-precio" min="0" step="0.01" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Precio ($)">
-                                    <button onclick="agregarProducto()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Add </button>
+                                    <button onclick="agregarProducto()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap">
+                                        <i data-lucide="plus" class="w-4 h-4 mr-1"></i> Agregar
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="card">
-                        <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center"> <i data-lucide="trash-2" class="icon text-red-600"></i>Eliminar Inventario (Merma) </h2>
+                        <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                            <i data-lucide="trash-2" class="icon text-red-600"></i>Eliminar Inventario (Merma)
+                        </h2>
                         <div class="space-y-4">
-                             <div> <label for="remove-pollos-cantidad" class="block text-sm font-medium text-gray-700">Pollos Enteros:</label> <div class="flex space-x-2 mt-1"> <input type="number" id="remove-pollos-cantidad" min="1" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cantidad a eliminar"> <button onclick="eliminarPollos()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="trash" class="w-4 h-4 mr-1"></i> Eliminar </button> </div> </div>
-                             <div> <label for="remove-presas-tipo" class="block text-sm font-medium text-gray-700">Presas Individuales:</label> <div class="flex space-x-2 mt-1"> <select id="remove-presas-tipo" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"> <option value="pechuga">Pechuga</option> <option value="muslo">Muslo</option> <option value="ala">Ala</option> <option value="pierna">Pierna</option> </select> <input type="number" id="remove-presas-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant."> <button onclick="eliminarPresas()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="trash" class="w-4 h-4 mr-1"></i> Del </button> </div> </div>
-                             <div> <label for="remove-producto-nombre" class="block text-sm font-medium text-gray-700">Producto Adicional:</label> <div class="flex space-x-2 mt-1"> <select id="remove-producto-nombre" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select> <input type="number" id="remove-producto-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant."> <button onclick="eliminarProducto()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center"> <i data-lucide="trash" class="w-4 h-4 mr-1"></i> Del </button> </div> </div>
+                             <div>
+                                <label for="remove-pollos-cantidad" class="block text-sm font-medium text-gray-700">Pollos Enteros:</label>
+                                <div class="flex space-x-2 mt-1">
+                                    <input type="number" id="remove-pollos-cantidad" min="1" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cantidad a eliminar">
+                                    <button onclick="eliminarPollos()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap">
+                                        <i data-lucide="trash" class="w-4 h-4 mr-1"></i> Eliminar
+                                    </button>
+                                </div>
+                             </div>
+                             <div>
+                                <label for="remove-presas-cantidad" class="block text-sm font-medium text-gray-700">Presas Generales (Total):</label>
+                                <div class="flex space-x-2 mt-1">
+                                    <input type="number" id="remove-presas-cantidad" min="1" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant. a eliminar">
+                                    <button onclick="eliminarPresas()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap">
+                                        <i data-lucide="trash" class="w-4 h-4 mr-1"></i> Eliminar
+                                    </button>
+                                </div>
+                             </div>
+                             <div>
+                                <label for="remove-producto-nombre" class="block text-sm font-medium text-gray-700">Producto Adicional:</label>
+                                <div class="flex space-x-2 mt-1">
+                                    <select id="remove-producto-nombre" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select>
+                                    <input type="number" id="remove-producto-cantidad" min="1" class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Cant.">
+                                    <button onclick="eliminarProducto()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap">
+                                        <i data-lucide="trash" class="w-4 h-4 mr-1"></i> Eliminar
+                                    </button>
+                                </div>
+                             </div>
                         </div>
+                    </div>
+                    <div class="card md:col-span-2">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                            <i data-lucide="dollar-sign" class="icon text-orange-600"></i>Editar Precios
+                        </h2>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                            <div>
+                                <label for="edit-item-type" class="block text-sm font-medium text-gray-700">Tipo:</label>
+                                <select id="edit-item-type" onchange="populateEditItemNames()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                    <option value="" disabled selected>Seleccione tipo...</option>
+                                    <option value="producto">Producto</option>
+                                    <option value="combo">Combo</option>
+                                    <option value="presa">Presa (General)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="edit-item-name" class="block text-sm font-medium text-gray-700">Nombre:</label>
+                                <select id="edit-item-name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                    <option value="" disabled selected>Seleccione...</option>
+                                </select>
+                            </div>
+                             <div>
+                                <label for="edit-item-new-price" class="block text-sm font-medium text-gray-700">Nuevo Precio ($):</label>
+                                <div class="flex space-x-2 mt-1">
+                                    <input type="number" id="edit-item-new-price" min="0" step="0.01" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="0.00">
+                                    <button onclick="actualizarPrecio()" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap">
+                                        <i data-lucide="save" class="w-4 h-4 mr-1"></i> Actualizar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                  </div>
+            </div>
+
+             <div id="tab-combos" class="tab-content">
+                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                            <i data-lucide="plus-square" class="icon text-purple-600"></i>Crear Combo Personalizado
+                        </h2>
+                        <div class="space-y-4">
+                            <div>
+                                <label for="custom-combo-name" class="block text-sm font-medium text-gray-700">Nombre del Nuevo Combo:</label>
+                                <input type="text" id="custom-combo-name" placeholder="Ej: Combo Ejecutivo" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            </div>
+                            <div>
+                                <label for="custom-combo-price" class="block text-sm font-medium text-gray-700">Precio del Combo ($):</label>
+                                <input type="number" id="custom-combo-price" min="0" step="0.01" placeholder="0.00" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            </div>
+                            <hr>
+                            <h3 class="text-lg font-medium text-gray-700">Añadir Items al Combo:</h3>
+                            <div class="flex flex-wrap sm:flex-nowrap gap-2 items-end">
+                                <div class="flex-grow min-w-[100px]">
+                                    <label for="custom-item-type" class="block text-sm font-medium text-gray-700">Tipo:</label>
+                                    <select id="custom-item-type" onchange="populateCustomItemNames()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                        <option value="" disabled selected>Seleccione...</option>
+                                        <option value="presa">Presa (General)</option>
+                                        <option value="producto">Producto</option>
+                                    </select>
+                                </div>
+                                <div id="custom-item-name-container" class="flex-grow min-w-[150px]">
+                                    <label for="custom-item-name" class="block text-sm font-medium text-gray-700">Nombre:</label>
+                                    <select id="custom-item-name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                        <option value="" disabled selected>Seleccione...</option>
+                                    </select>
+                                </div>
+                                <div class="w-20 flex-shrink-0">
+                                    <label for="custom-item-quantity" class="block text-sm font-medium text-gray-700">Cant:</label>
+                                    <input type="number" id="custom-item-quantity" min="1" value="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                </div>
+                                <button onclick="addItemToCustomComboBuilder()" class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap">
+                                    <i data-lucide="arrow-down-circle" class="w-4 h-4 mr-1"></i> Añadir Item
+                                </button>
+                            </div>
+                            <h3 class="text-lg font-medium text-gray-700 mt-4">Items en este Combo:</h3>
+                            <div id="custom-combo-builder-display" class="p-3 border rounded-md bg-gray-50 min-h-[60px]">
+                                <p class="italic text-gray-400 text-sm">Añada items al combo...</p>
+                            </div>
+                            <button onclick="guardarNuevoCombo()" class="w-full mt-4 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium flex items-center justify-center">
+                                <i data-lucide="save" class="w-4 h-4 mr-1"></i> Guardar Nuevo Combo
+                            </button>
+                        </div>
+                    </div>
+                     <div class="card">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                            <i data-lucide="list" class="icon text-purple-600"></i>Combos Existentes
+                        </h2>
+                        <p class="text-sm text-gray-600 mb-2">(Incluye predefinidos y personalizados)</p>
+                         <ul id="lista-combos-existentes" class="space-y-1 text-sm max-h-[40vh] overflow-y-auto border rounded-md p-2 bg-gray-50 mb-4">
+                             <li class="italic text-gray-400">Cargando...</li>
+                         </ul>
+                         <label for="delete-combo-select" class="block text-sm font-medium text-gray-700 mt-4">Eliminar Combo Personalizado:</label>
+                         <div class="flex space-x-2 mt-1">
+                            <select id="delete-combo-select" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                <option value="" disabled selected>Seleccione combo a eliminar...</option>
+                            </select>
+                            <button onclick="eliminarComboSeleccionado()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center whitespace-nowrap">
+                                <i data-lucide="trash-2" class="w-4 h-4 mr-1"></i> Eliminar
+                            </button>
+                         </div>
                     </div>
                 </div>
             </div>
 
-            <div id="tab-historial" class="tab-content">
-                 <div class="card"> <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center"> <i data-lucide="history" class="icon text-orange-600"></i>Historial de Movimientos (Últimos 50) </h2> <ul id="historial-movimientos" class="space-y-2 text-sm text-gray-600 max-h-96 overflow-y-auto pr-2 border rounded-md p-3 bg-gray-50"></ul> </div>
+            <div id="tab-cocina" class="tab-content">
+                <div class="card">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                        <i data-lucide="chef-hat" class="icon text-orange-600"></i>Órdenes Pendientes para Cocina
+                    </h2>
+                    <div id="cocina-loading" class="text-center p-4 hidden">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                        <p class="text-gray-500 italic">Buscando órdenes pendientes...</p>
+                    </div>
+                    <div id="cocina-order-list" class="space-y-4">
+                        <p class="text-gray-500 italic">No hay órdenes pendientes.</p>
+                        </div>
+                </div>
             </div>
-        </div>
 
-        <div id="feedback-zone" class="feedback"></div>
+            <div id="tab-historial" class="tab-content">
+                 <div class="card">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                        <i data-lucide="history" class="icon text-cyan-600"></i>Historial de Movimientos (Últimos 100)
+                    </h2>
+                    <ul id="historial-movimientos" class="space-y-2 text-sm text-gray-600 max-h-96 overflow-y-auto pr-2 border rounded-md p-3 bg-gray-50">
+                         <li class="italic text-gray-400">Cargando historial...</li>
+                    </ul>
+                 </div>
+            </div>
+
+            <div id="tab-reportes" class="tab-content">
+                <div class="card">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-700 flex items-center">
+                        <i data-lucide="bar-chart-2" class="icon text-teal-600"></i>Reporte de Ventas
+                    </h2>
+                    <div class="flex flex-wrap gap-4 mb-4 items-center">
+                        <div>
+                            <label for="report-start-date" class="block text-sm font-medium text-gray-700">Fecha Inicio:</label>
+                            <input type="date" id="report-start-date" name="report-start-date" class="mt-1 block w-full sm:w-auto rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="report-end-date" class="block text-sm font-medium text-gray-700">Fecha Fin:</label>
+                            <input type="date" id="report-end-date" name="report-end-date" class="mt-1 block w-full sm:w-auto rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        </div>
+                        <button onclick="generarReporteVentas()" class="self-end bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md shadow-sm text-sm font-medium flex items-center">
+                            <i data-lucide="search" class="w-4 h-4 mr-1"></i> Generar Reporte
+                        </button>
+                    </div>
+                    <div id="report-loading" class="text-center p-4 hidden">
+                         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                        <p class="text-gray-500 italic">Cargando reporte...</p>
+                    </div>
+                    <div id="report-results">
+                        <p class="text-gray-500 italic">Seleccione un rango de fechas (opcional) y haga clic en "Generar Reporte".</p>
+                        </div>
+                </div>
+            </div>
+
+        </div> <div id="feedback-zone" class="feedback"></div>
 
     </div> <script>
         // --- CONFIGURACIÓN ---
-        const API_BASE_URL = "https://inventario-asadero-backend.onrender.com"; // ¡Asegúrate que sea tu URL de Railway!
+        // Reemplaza esta URL con la URL de tu backend desplegado en Railway
+        const API_BASE_URL = "https://inventario-asadero-production-76a3.up.railway.app";
+        const PRESAS_KEY = 'presas_total'; // Coincide con el backend
+        const PRESA_PRICE_KEY = 'presa_precio_default'; // Coincide con el backend
+        const POLLING_INTERVAL_COCINA = 15000; // 15 segundos para actualizar órdenes de cocina
+        const FEEDBACK_TIMEOUT = 4000; // 4 segundos para ocultar notificaciones
 
-        // --- ESTADO GLOBAL (CLIENT-SIDE) ---
-        let inventario = { pollosEnteros: 0, presas: {}, productos: {}, history: [], combos: {}, presasPorPollo: {} };
-        const nombresCombosDisplay = { "combo_1_8_pechuga": "1/8 Pollo Pechuga", "combo_1_8_muslo": "1/8 Pollo Muslo", "combo_1_8_ala": "1/8 Pollo Ala", "combo_1_8_pierna": "1/8 Pollo Pierna", "combo_1_4_pechuga_ala": "1/4 Pollo Pechuga + Ala", "combo_1_4_muslo_pierna": "1/4 Pollo Muslo + Pierna", "combo_1_2": "1/2 Pollo", "combo_entero": "Pollo Entero" };
+        // --- ESTADO GLOBAL ---
+        let inventario = {
+            pollosEnteros: 0,
+            presas_total: 0,
+            presa_precio_default: 0,
+            productos: {},
+            history: [],
+            combos: {},
+            presasPorPolloTotal: 8 // Valor por defecto, se actualiza desde el backend
+        };
+        // Nombres amigables para combos predefinidos (si existen)
+        const nombresCombosDisplay = {
+            "combo_1_8": "1/8 Pollo",
+            "combo_1_4": "1/4 Pollo",
+            "combo_1_2": "1/2 Pollo",
+            "combo_entero": "Pollo Entero",
+            "combo_1_4_papas": "1/4 Pollo + Papas" // Ejemplo
+            // Añade más mapeos si tienes otros combos predefinidos
+        };
         let currentUserRole = null;
         let currentUsername = null;
-        let carrito = [];
-        let inventoryChart = null;
+        let carrito = []; // El carrito de compras actual
+        let currentCustomComboItems = []; // Items para el constructor de combos
+        let cocinaPollingIntervalId = null; // ID del intervalo para la cocina
 
-        // --- Referencias DOM ---
-        // ... (igual que antes, añadir referencia a input de precio) ...
+        // --- Referencias a Elementos DOM (cache para mejor rendimiento) ---
         const loginScreenEl = document.getElementById('login-screen');
         const mainAppEl = document.getElementById('main-app');
         const userInfoEl = document.getElementById('user-info');
@@ -142,573 +473,1533 @@
         const comboSelectEl = document.getElementById('sell-combo-tipo');
         const comboCantidadEl = document.getElementById('sell-combo-cantidad');
         const productoVentaSelectEl = document.getElementById('sell-producto-nombre');
+        const productoVentaCantidadEl = document.getElementById('sell-producto-cantidad');
         const productoEliminarSelectEl = document.getElementById('remove-producto-nombre');
-        const tabButtons = document.querySelectorAll('.tab-button');
+        const productoEliminarCantidadEl = document.getElementById('remove-producto-cantidad');
+        const tabsNavEl = document.getElementById('tabs-nav'); // Contenedor de botones de tabs
+        const tabButtons = document.querySelectorAll('.tab-button'); // Colección estática inicial
         const tabContents = document.querySelectorAll('.tab-content');
         const carritoListaEl = document.getElementById('carrito-lista');
         const venderCarritoBtn = document.getElementById('vender-carrito-btn');
         const carritoTotalItemsEl = document.getElementById('carrito-total-items');
-        const carritoTotalPrecioEl = document.getElementById('carrito-total'); // <-- Para mostrar total $
+        const carritoTotalPrecioEl = document.getElementById('carrito-total');
         const refreshButton = document.getElementById('refresh-button');
-        const addProductoPrecioEl = document.getElementById('add-producto-precio'); // <-- Input de precio
+        const addProductoNombreEl = document.getElementById('add-producto-nombre');
+        const addProductoCantidadEl = document.getElementById('add-producto-cantidad');
+        const addProductoPrecioEl = document.getElementById('add-producto-precio');
+        const reportStartDateEl = document.getElementById('report-start-date');
+        const reportEndDateEl = document.getElementById('report-end-date');
+        const reportResultsEl = document.getElementById('report-results');
+        const reportLoadingEl = document.getElementById('report-loading');
+        const editItemTypeSelect = document.getElementById('edit-item-type');
+        const editItemNameSelect = document.getElementById('edit-item-name');
+        const editItemNewPriceInput = document.getElementById('edit-item-new-price');
+        const customComboNameInput = document.getElementById('custom-combo-name');
+        const customComboPriceInput = document.getElementById('custom-combo-price');
+        const customItemTypeSelect = document.getElementById('custom-item-type');
+        const customItemNameSelect = document.getElementById('custom-item-name');
+        const customItemQuantityInput = document.getElementById('custom-item-quantity');
+        const customComboBuilderDisplay = document.getElementById('custom-combo-builder-display');
+        const listaCombosExistentesEl = document.getElementById('lista-combos-existentes');
+        const deleteComboSelect = document.getElementById('delete-combo-select');
+        const addPollosCantidadInput = document.getElementById('add-pollos-cantidad');
+        const addPresasCantidadInput = document.getElementById('add-presas-cantidad');
+        const removePollosCantidadInput = document.getElementById('remove-pollos-cantidad');
+        const removePresasCantidadInput = document.getElementById('remove-presas-cantidad');
+        const addPresaGeneralCantidadInput = document.getElementById('add-presa-general-cantidad');
+        const presaDefaultPriceDisplayAdd = document.getElementById('presa-default-price-display-add');
+        const cocinaLoadingEl = document.getElementById('cocina-loading');
+        const cocinaOrderListEl = document.getElementById('cocina-order-list');
+        const informarCocineroCheckbox = document.getElementById('informar-cocinero-checkbox');
+        const notaCocineroInput = document.getElementById('nota-cocinero-input');
 
 
         // --- Lógica de Utilidad y UI General ---
-        function mostrarFeedback(mensaje, tipo = 'success') { /* ... (sin cambios) ... */ }
-        function calcularPollosEquivalentes() { /* ... (sin cambios) ... */ }
-        function actualizarUI() { /* ... (sin cambios) ... */ }
-        function actualizarSelectProductos() { /* ... (Modificada para mostrar precio) ... */ }
-        function llenarSelectCombos() { /* ... (Modificada para mostrar precio) ... */ }
-        async function handleLogin(event) { /* ... (sin cambios) ... */ }
-        function handleLogout() { /* ... (sin cambios) ... */ }
-        function setupUIForRole() { /* ... (sin cambios) ... */ }
-        async function cargarDatosIniciales() { /* ... (sin cambios) ... */ }
-        function showTab(tabId) { /* ... (sin cambios) ... */ }
-        function agregarComboAlCarrito() { /* ... (sin cambios) ... */ }
-        function agregarPresasAlCarrito() { /* ... (sin cambios) ... */ }
-        function agregarProductoAlCarrito() { /* ... (sin cambios) ... */ }
-        function removerDelCarrito(index) { /* ... (sin cambios) ... */ }
-        function actualizarDisplayCarrito() { /* ... (Modificada para mostrar precios y total) ... */ }
-        async function procesarVentaCarrito() { /* ... (sin cambios) ... */ }
-        async function agregarPollos() { /* ... (sin cambios) ... */ }
-        async function agregarPresas() { /* ... (sin cambios) ... */ }
-        async function agregarProducto() { /* ... (Modificada para enviar precio) ... */ }
-        async function eliminarPollos() { /* ... (sin cambios) ... */ }
-        async function eliminarPresas() { /* ... (sin cambios) ... */ }
-        async function eliminarProducto() { /* ... (sin cambios) ... */ }
-        async function refreshData() { /* ... (sin cambios) ... */ }
-        function inicializarGrafico() { /* ... (sin cambios) ... */ }
-        function actualizarGrafico() { /* ... (sin cambios) ... */ }
 
-
-        // --- Implementaciones de funciones (Copiadas/Actualizadas para Precios) ---
-
-        function mostrarFeedback(mensaje, tipo = 'success') {
+        /** Muestra notificaciones de feedback al usuario */
+        function mostrarFeedback(mensaje, tipo = 'success', duracion = FEEDBACK_TIMEOUT) {
+            if (!feedbackZoneEl) return;
             feedbackZoneEl.textContent = mensaje;
-            feedbackZoneEl.className = `feedback feedback-${tipo}`;
+            feedbackZoneEl.className = `feedback feedback-${tipo}`; // Resetea clases y aplica la nueva
             feedbackZoneEl.style.display = 'block';
+            // Ocultar automáticamente después de la duración especificada
             setTimeout(() => {
+                // Solo ocultar si el mensaje no ha cambiado (evita ocultar un mensaje nuevo)
                 if (feedbackZoneEl.textContent === mensaje) {
                     feedbackZoneEl.style.display = 'none';
                 }
-            }, 4000);
+            }, duracion);
         }
 
+        /** Calcula el número estimado de pollos completos basado en presas */
         function calcularPollosEquivalentes() {
-            if (!inventario || !inventario.presas || !inventario.presasPorPollo) return 0;
-            const totalPresas = Object.values(inventario.presas).reduce((sum, cant) => sum + (cant || 0), 0);
-            const presasPorPolloTotal = Object.values(inventario.presasPorPollo).reduce((sum, cant) => sum + (cant || 0), 0);
-            if (presasPorPolloTotal === 0) return inventario.pollosEnteros || 0;
-            const pollosCompletos = Math.floor(totalPresas / presasPorPolloTotal);
-            const presasSobrantes = totalPresas % presasPorPolloTotal;
-             return pollosCompletos + (presasSobrantes > 0 ? 1 : 0);
+            if (!inventario || inventario.presas_total === undefined || !inventario.presasPorPolloTotal) return 0;
+            const totalPresas = inventario.presas_total || 0;
+            const presasPorPollo = inventario.presasPorPolloTotal || 8; // Usar 8 como fallback si no está definido
+            if (presasPorPollo === 0) return inventario.pollosEnteros || 0; // Evitar división por cero
+
+            // Calcula pollos completos y presas sueltas
+            const pollosCompletosPorPresas = Math.floor(totalPresas / presasPorPollo);
+            const presasSueltas = totalPresas % presasPorPollo;
+
+            // Estima un pollo adicional si hay presas sueltas
+            // return pollosCompletosPorPresas + (presasSueltas > 0 ? 1 : 0);
+            // O mostrar como decimal:
+            return (totalPresas / presasPorPollo).toFixed(1);
         }
 
+        /** Actualiza toda la interfaz de usuario con los datos del estado 'inventario' */
         function actualizarUI() {
-            console.log("--- Iniciando actualizarUI ---");
-            console.log("Datos de inventario actuales:", JSON.parse(JSON.stringify(inventario)));
-
+            console.log("Actualizando UI con datos:", inventario);
             try {
-                // Inventario - Presas
-                console.log("Actualizando lista de presas...");
-                listaPresasEl.innerHTML = '';
-                if (inventario.presas && Object.keys(inventario.presas).length > 0) {
-                    Object.entries(inventario.presas).forEach(([presa, cantidad]) => {
-                        const li = document.createElement('li');
-                        li.className = "flex items-center";
-                        li.innerHTML = `<i data-lucide="drumstick" class="icon text-orange-500 w-4 h-4"></i> ${document.createTextNode(presa.charAt(0).toUpperCase() + presa.slice(1) + ': ').textContent}<span class="font-semibold ml-1">${cantidad || 0}</span>`;
-                        listaPresasEl.appendChild(li);
-                    });
-                } else { listaPresasEl.innerHTML = '<li class="italic text-gray-400">No hay presas.</li>'; }
-                pollosEquivalentesEl.textContent = calcularPollosEquivalentes();
+                // --- Actualizar Tab Inventario ---
+                // Lista de Presas
+                if (listaPresasEl) {
+                    const totalPresas = inventario.presas_total || 0;
+                    const precioPresa = (inventario.presa_precio_default || 0).toFixed(2);
+                    listaPresasEl.innerHTML = `
+                        <li class="flex items-center text-lg">
+                            <i data-lucide="drumstick" class="icon text-orange-500 w-5 h-5"></i>
+                            Total Presas: <span class="font-semibold ml-2">${totalPresas}</span>
+                            <span class="text-xs text-gray-500 ml-2">($${precioPresa} c/u)</span>
+                        </li>`;
+                }
+                // Pollos Equivalentes
+                if (pollosEquivalentesEl) {
+                    pollosEquivalentesEl.textContent = calcularPollosEquivalentes();
+                }
+                // Lista de Productos
+                if (listaProductosEl) {
+                    listaProductosEl.innerHTML = ''; // Limpiar antes de añadir
+                    if (inventario.productos && Object.keys(inventario.productos).length > 0) {
+                        const productosConStock = Object.entries(inventario.productos)
+                            .filter(([_, data]) => data.cantidad > 0);
 
-                // Inventario - Productos (Mostrar precio aquí también)
-                console.log("Actualizando lista de productos...");
-                listaProductosEl.innerHTML = '';
-                if (inventario.productos && Object.keys(inventario.productos).length > 0) {
-                    const productosConStock = Object.entries(inventario.productos).filter(([_, data]) => data.cantidad > 0);
-                    if (productosConStock.length > 0) {
-                        productosConStock.forEach(([nombre, data]) => {
+                        if (productosConStock.length > 0) {
+                            productosConStock.sort((a, b) => a[0].localeCompare(b[0])) // Ordenar alfabéticamente
+                                .forEach(([nombre, data]) => {
+                                    const li = document.createElement('li');
+                                    li.className = "flex items-center justify-between";
+                                    const precioFormateado = (data.precio || 0).toFixed(2);
+                                    li.innerHTML = `
+                                        <span>
+                                            <i data-lucide="package" class="icon text-blue-500 w-4 h-4"></i>
+                                            ${escapeHtml(nombre)}: <span class="font-semibold ml-1">${data.cantidad}</span>
+                                        </span>
+                                        <span class="text-xs text-gray-500 ml-2">($${precioFormateado})</span>`;
+                                    listaProductosEl.appendChild(li);
+                                });
+                        } else {
+                            listaProductosEl.innerHTML = '<li class="italic text-gray-400">No hay productos con stock.</li>';
+                        }
+                    } else {
+                        listaProductosEl.innerHTML = '<li class="italic text-gray-400">No hay productos registrados.</li>';
+                    }
+                }
+
+                // --- Actualizar Tab Historial ---
+                if (historialMovimientosEl) {
+                    historialMovimientosEl.innerHTML = ''; // Limpiar
+                    if (inventario.history && inventario.history.length > 0) {
+                        inventario.history.forEach(movimiento => {
                             const li = document.createElement('li');
-                            li.className = "flex items-center";
-                            const precioFormateado = (data.precio || 0).toFixed(2); // Formatear precio
-                            li.innerHTML = `<i data-lucide="package" class="icon text-blue-500 w-4 h-4"></i> ${document.createTextNode(nombre + ': ').textContent}<span class="font-semibold ml-1">${data.cantidad}</span> <span class="text-xs text-gray-500 ml-2">($${precioFormateado})</span>`;
-                            listaProductosEl.appendChild(li);
+                            li.textContent = movimiento;
+                            // Aplicar clases de color según el tipo de movimiento (mejorado)
+                            if (movimiento.includes('ENTRADA')) li.classList.add('text-green-700');
+                            else if (movimiento.includes('VENTA')) li.classList.add('text-blue-700');
+                            else if (movimiento.includes('ELIMINACIÓN') || movimiento.includes('Eliminado')) li.classList.add('text-red-700');
+                            else if (movimiento.includes('LOGIN')) li.classList.add('text-purple-700');
+                            else if (movimiento.includes('LOGOUT')) li.classList.add('text-gray-500');
+                            else if (movimiento.includes('CARRITO')) li.classList.add('text-cyan-700');
+                            else if (movimiento.includes('PRECIO')) li.classList.add('text-orange-700');
+                            else if (movimiento.includes('COMBO PERSONALIZADO')) li.classList.add('text-indigo-700');
+                            else if (movimiento.includes('COCINA: Orden')) li.classList.add('text-yellow-700', 'font-medium');
+                            else if (movimiento.includes('Error') || movimiento.includes('ERROR')) li.classList.add('text-red-700', 'font-semibold');
+                            historialMovimientosEl.appendChild(li);
                         });
-                    } else { listaProductosEl.innerHTML = '<li class="italic text-gray-400">No hay productos con stock.</li>'; }
-                } else { listaProductosEl.innerHTML = '<li class="italic text-gray-400">No hay productos.</li>'; }
+                    } else {
+                        historialMovimientosEl.innerHTML = '<li class="italic text-gray-400">No hay movimientos registrados.</li>';
+                    }
+                }
 
-                console.log("Llamando a actualizarGrafico...");
-                actualizarGrafico();
+                // --- Actualizar Selects y Otros Elementos ---
+                actualizarSelectProductos(); // Actualiza selects de venta y eliminación
+                llenarSelectCombosVenta(); // Actualiza select de combos para vender
+                actualizarDisplayCarrito(); // Actualiza la vista del carrito
+                populateEditItemNames(); // Actualiza selects para editar precios
+                populateCustomItemNames(); // Actualiza selects para crear combos
+                listarCombosExistentes(); // Actualiza lista de combos y select para eliminar
+                // Actualizar precio de presa en la sección de añadir al carrito
+                if (presaDefaultPriceDisplayAdd) {
+                    presaDefaultPriceDisplayAdd.textContent = (inventario.presa_precio_default || 0).toFixed(2);
+                }
 
-                console.log("Actualizando historial...");
-                historialMovimientosEl.innerHTML = '';
-                if (inventario.history && inventario.history.length > 0) {
-                    inventario.history.forEach(mov => {
-                        const li = document.createElement('li'); li.textContent = mov;
-                        if (mov.includes('ENTRADA')) li.classList.add('text-green-700');
-                        else if (mov.includes('VENTA')) li.classList.add('text-blue-700');
-                        else if (mov.includes('ELIMINACIÓN')) li.classList.add('text-red-700');
-                        else if (mov.includes('LOGIN')) li.classList.add('text-purple-700');
-                        else if (mov.includes('LOGOUT')) li.classList.add('text-gray-500');
-                        else if (mov.includes('CARRITO')) li.classList.add('text-cyan-700');
-                        else if (mov.includes('Error')) li.classList.add('text-red-700', 'font-semibold');
-                        historialMovimientosEl.appendChild(li);
-                    });
-                } else { historialMovimientosEl.innerHTML = '<li class="italic text-gray-400">No hay movimientos.</li>'; }
-
-                console.log("Actualizando selects y carrito...");
-                actualizarSelectProductos();
-                llenarSelectCombos();
-                actualizarDisplayCarrito();
-
-                console.log("Renderizando iconos Lucide...");
-                lucide.createIcons();
+                // Re-renderizar iconos Lucide
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                } else {
+                    console.warn("Lucide icons library not available.");
+                }
 
             } catch (error) {
-                 console.error("¡ERROR DENTRO de actualizarUI!", error);
-                 listaPresasEl.innerHTML = '<li class="text-red-600 font-semibold">Error UI (presas)</li>';
-                 listaProductosEl.innerHTML = '<li class="text-red-600 font-semibold">Error UI (productos)</li>';
-                 historialMovimientosEl.innerHTML = '<li class="text-red-600 font-semibold">Error UI (historial)</li>';
+                console.error("Error fatal durante actualizarUI:", error);
+                mostrarFeedback('Error al actualizar la interfaz.', 'error');
             }
-             console.log("--- Fin actualizarUI ---");
         }
 
-        // --- CAMBIO: Mostrar precio en selects ---
+        /** Escapa caracteres HTML para prevenir XSS */
+        function escapeHtml(unsafe) {
+            if (!unsafe) return "";
+            return unsafe
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;")
+                 .replace(/'/g, "&#039;");
+        }
+
+
+        /** Actualiza los selects de productos (para vender y eliminar) */
         function actualizarSelectProductos() {
-             const productoNombres = inventario.productos ? Object.keys(inventario.productos).filter(p => inventario.productos[p]?.cantidad > 0) : []; // Filtrar por cantidad
-             const noProdOpt = '<option value="" disabled selected>No hay productos</option>';
-             productoVentaSelectEl.innerHTML = '<option value="" disabled selected>Seleccione...</option>';
-             productoEliminarSelectEl.innerHTML = '<option value="" disabled selected>Seleccione...</option>';
-             if (productoNombres.length > 0) {
-                 productoNombres.forEach(nombre => {
-                     const data = inventario.productos[nombre];
-                     const precioFormateado = (data.precio || 0).toFixed(2);
-                     // Mostrar nombre, stock y precio
-                     const optionText = `${nombre} (${data.cantidad}) - $${precioFormateado}`;
-                     const option = `<option value="${nombre}">${optionText}</option>`;
-                     productoVentaSelectEl.innerHTML += option;
-                     productoEliminarSelectEl.innerHTML += option; // También en eliminar por consistencia
-                 });
-             } else {
-                  productoVentaSelectEl.innerHTML = noProdOpt;
-                  productoEliminarSelectEl.innerHTML = noProdOpt;
-              }
-        }
+            const productosNombres = inventario.productos ? Object.keys(inventario.productos) : [];
+            const noHayProductosOption = '<option value="" disabled selected>No hay productos</option>';
 
-        // --- CAMBIO: Mostrar precio en selects ---
-        function llenarSelectCombos() {
-            if (inventario.combos && Object.keys(inventario.combos).length > 0) {
-                 if (comboSelectEl.options.length <= 1 || !comboSelectEl.dataset.filled) {
-                     comboSelectEl.innerHTML = '<option value="" disabled selected>Seleccione combo...</option>';
-                     Object.keys(inventario.combos).forEach(comboKey => {
-                         const comboData = inventario.combos[comboKey];
-                         const displayName = nombresCombosDisplay[comboKey] || comboKey;
-                         const precioFormateado = (comboData.precio || 0).toFixed(2);
-                         // Mostrar nombre y precio
-                         const optionText = `${displayName} - $${precioFormateado}`;
-                         comboSelectEl.innerHTML += `<option value="${comboKey}">${optionText}</option>`;
-                     });
-                     comboSelectEl.dataset.filled = "true";
-                 }
+            // Limpiar selects
+            if (productoVentaSelectEl) productoVentaSelectEl.innerHTML = '<option value="" disabled selected>Seleccione producto...</option>';
+            if (productoEliminarSelectEl) productoEliminarSelectEl.innerHTML = '<option value="" disabled selected>Seleccione producto...</option>';
+
+            if (productosNombres.length > 0) {
+                productosNombres.sort().forEach(nombre => {
+                    const data = inventario.productos[nombre];
+                    const precioFormateado = (data.precio || 0).toFixed(2);
+                    const stock = data.cantidad || 0;
+                    const optionTextVenta = `${escapeHtml(nombre)} (${stock}) - $${precioFormateado}`;
+                    const optionTextEliminar = `${escapeHtml(nombre)} (${stock})`; // No mostrar precio al eliminar
+
+                    // Añadir al select de venta solo si hay stock
+                    if (stock > 0 && productoVentaSelectEl) {
+                        productoVentaSelectEl.innerHTML += `<option value="${escapeHtml(nombre)}">${optionTextVenta}</option>`;
+                    }
+                    // Añadir siempre al select de eliminar
+                    if (productoEliminarSelectEl) {
+                        productoEliminarSelectEl.innerHTML += `<option value="${escapeHtml(nombre)}">${optionTextEliminar}</option>`;
+                    }
+                });
+                // Si después de filtrar no quedan productos para vender
+                if (productoVentaSelectEl && productoVentaSelectEl.options.length <= 1) {
+                     productoVentaSelectEl.innerHTML = '<option value="" disabled selected>No hay productos con stock</option>';
+                }
             } else {
-                 comboSelectEl.innerHTML = '<option value="" disabled selected>No hay combos</option>';
-                 comboSelectEl.dataset.filled = "false";
+                if (productoVentaSelectEl) productoVentaSelectEl.innerHTML = noHayProductosOption;
+                if (productoEliminarSelectEl) productoEliminarSelectEl.innerHTML = noHayProductosOption;
             }
         }
 
-        async function handleLogin(event) { /* ... (sin cambios) ... */ }
-        function handleLogout() { /* ... (sin cambios) ... */ }
-        function setupUIForRole() { /* ... (sin cambios) ... */ }
-        async function cargarDatosIniciales() { /* ... (sin cambios) ... */ }
-        function showTab(tabId) { /* ... (sin cambios) ... */ }
-        function agregarComboAlCarrito() { /* ... (sin cambios) ... */ }
-        function agregarPresasAlCarrito() { /* ... (sin cambios) ... */ }
-        function agregarProductoAlCarrito() { /* ... (sin cambios) ... */ }
-        function removerDelCarrito(index) { /* ... (sin cambios) ... */ }
+        /** Llena el select de combos en la pestaña de Ventas */
+        function llenarSelectCombosVenta() {
+            if (!comboSelectEl) return;
+            comboSelectEl.innerHTML = '<option value="" disabled selected>Seleccione combo...</option>';
+            let comboKeys = [];
+            if (inventario.combos && Object.keys(inventario.combos).length > 0) {
+                comboKeys = Object.keys(inventario.combos)
+                    .sort((a, b) => {
+                        const nombreA = nombresCombosDisplay[a] || getNombreComboDisplay(a);
+                        const nombreB = nombresCombosDisplay[b] || getNombreComboDisplay(b);
+                        return nombreA.localeCompare(nombreB);
+                    }); // Ordenar alfabéticamente por nombre display
 
-        // --- CAMBIO: Calcular y mostrar precios en carrito ---
+                comboKeys.forEach(comboKey => {
+                    const comboData = inventario.combos[comboKey];
+                    const displayName = nombresCombosDisplay[comboKey] || getNombreComboDisplay(comboKey);
+                    const precioFormateado = (comboData.precio || 0).toFixed(2);
+                    const optionText = `${displayName} - $${precioFormateado}`;
+                    // Validar si el combo se puede vender (stock suficiente)
+                    // Nota: Esta validación es solo visual, la validación real ocurre en el backend
+                    const [sePuedeVender, _] = validarStockComboVisual(comboKey);
+                    comboSelectEl.innerHTML += `
+                        <option value="${escapeHtml(comboKey)}" ${!sePuedeVender ? 'disabled class="text-red-500"' : ''}>
+                            ${optionText} ${!sePuedeVender ? '(Stock Insuf.)' : ''}
+                        </option>`;
+                });
+                comboSelectEl.dataset.filled = "true"; // Marcar como llenado
+            } else {
+                comboSelectEl.innerHTML = '<option value="" disabled selected>No hay combos definidos</option>';
+                comboSelectEl.dataset.filled = "false";
+            }
+        }
+
+        /** Obtiene un nombre legible para combos personalizados */
+        function getNombreComboDisplay(comboKey) {
+            if (!comboKey) return "Combo Desconocido";
+            return comboKey.replace(/^custom_/, '') // Quitar prefijo
+                         .replace(/_/g, ' ') // Reemplazar guiones bajos por espacios
+                         .replace(/\b\w/g, l => l.toUpperCase()); // Capitalizar cada palabra
+        }
+
+        /** Valida visualmente si hay stock para un combo (no reemplaza validación backend) */
+        function validarStockComboVisual(comboKey) {
+            if (!inventario.combos || !inventario.combos[comboKey]) return [false, "Combo no definido"];
+            const combo = inventario.combos[comboKey];
+            let stockSuficiente = true;
+            let faltantes = [];
+
+            // Validar presas
+            const presasNecesarias = combo.presas_necesarias || 0;
+            if (inventario.presas_total < presasNecesarias) {
+                stockSuficiente = false;
+                faltantes.push("Presas");
+            }
+
+            // Validar productos
+            if (combo.productos && typeof combo.productos === 'object') {
+                for (const [prodNombre, cantNecesaria] of Object.entries(combo.productos)) {
+                    const stockProducto = inventario.productos[prodNombre]?.cantidad || 0;
+                    if (stockProducto < cantNecesaria) {
+                        stockSuficiente = false;
+                        faltantes.push(prodNombre);
+                    }
+                }
+            }
+            return [stockSuficiente, faltantes.join(', ')];
+        }
+
+
+        /** Maneja el evento de submit del formulario de login */
+        async function handleLogin(event) {
+            event.preventDefault(); // Evitar recarga de página
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+            const loginErrorEl = document.getElementById('login-error');
+
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value;
+
+            if (loginErrorEl) loginErrorEl.classList.add('hidden'); // Ocultar error previo
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: username, password: password })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    currentUserRole = result.role;
+                    currentUsername = username;
+                    if (loginScreenEl) loginScreenEl.classList.add('hidden');
+                    if (mainAppEl) mainAppEl.classList.remove('hidden');
+                    if (userInfoEl) userInfoEl.textContent = `Usuario: ${currentUsername} (${currentUserRole})`;
+
+                    await cargarDatosIniciales(); // Cargar datos después del login
+                    setupUIForRole(); // Configurar UI según el rol
+
+                    // Cargar preferencia de informar a cocinero
+                    const savedPref = localStorage.getItem('informarCocineroPref');
+                    if (informarCocineroCheckbox) {
+                         informarCocineroCheckbox.checked = savedPref === null ? true : (savedPref === 'true'); // Default a true si no hay pref guardada
+                    }
+
+                    mostrarFeedback(`¡Bienvenido ${currentUsername}! Rol: ${currentUserRole}`, 'success');
+                } else {
+                    const errorMessage = result.message || 'Credenciales incorrectas.';
+                    mostrarFeedback(errorMessage, 'error');
+                    if (loginErrorEl) {
+                        loginErrorEl.textContent = errorMessage;
+                        loginErrorEl.classList.remove('hidden');
+                    }
+                    if (passwordInput) passwordInput.value = ''; // Limpiar contraseña en error
+                }
+            } catch (error) {
+                console.error("Error durante el login:", error);
+                const connectErrorMsg = 'Error de conexión con el servidor.';
+                mostrarFeedback(connectErrorMsg, 'error');
+                if (loginErrorEl) {
+                    loginErrorEl.textContent = connectErrorMsg;
+                    loginErrorEl.classList.remove('hidden');
+                }
+            }
+        }
+
+        /** Maneja el logout del usuario */
+        function handleLogout() {
+            currentUserRole = null;
+            currentUsername = null;
+
+            // Detener polling de cocina si está activo
+            if (cocinaPollingIntervalId) {
+                clearInterval(cocinaPollingIntervalId);
+                cocinaPollingIntervalId = null;
+                console.log("Polling de cocina detenido.");
+            }
+
+            // Ocultar app principal, mostrar login
+            if (mainAppEl) mainAppEl.classList.add('hidden');
+            if (loginScreenEl) loginScreenEl.classList.remove('hidden');
+
+            // Limpiar campos y estado
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+            const loginErrorEl = document.getElementById('login-error');
+            if (usernameInput) usernameInput.value = '';
+            if (passwordInput) passwordInput.value = '';
+            if (loginErrorEl) loginErrorEl.classList.add('hidden');
+            if (userInfoEl) userInfoEl.textContent = '';
+            carrito = []; // Limpiar carrito
+            inventario = { pollosEnteros: 0, presas_total: 0, presa_precio_default: 0, productos: {}, historial: [], combos: {}, presasPorPolloTotal: 8 }; // Resetear inventario local
+            actualizarUI(); // Actualizar UI para reflejar el estado reseteado
+            mostrarFeedback('Sesión cerrada.', 'success');
+        }
+
+        /** Configura la visibilidad de las tabs según el rol del usuario */
+        function setupUIForRole() {
+            const isAdmin = currentUserRole === 'admin';
+            const isVendedor = currentUserRole === 'vendedor';
+            const isCocinero = currentUserRole === 'cocinero';
+
+            const allTabButtons = tabsNavEl ? tabsNavEl.querySelectorAll('.tab-button') : [];
+
+            allTabButtons.forEach(button => {
+                const tabName = button.dataset.tab;
+                let isAllowed = false;
+
+                // Definir permisos por rol
+                if (isAdmin) {
+                    isAllowed = ['venta', 'inventario', 'gestion', 'combos', 'historial', 'reportes', 'cocina'].includes(tabName); // Admin ve todo
+                } else if (isVendedor) {
+                    isAllowed = tabName === 'venta'; // Vendedor solo ve ventas
+                } else if (isCocinero) {
+                    isAllowed = tabName === 'cocina'; // Cocinero solo ve cocina
+                }
+
+                button.disabled = !isAllowed;
+                button.style.display = isAllowed ? 'inline-flex' : 'none'; // Ocultar si no tiene permiso
+                button.classList.toggle('disabled', !isAllowed);
+            });
+
+            // Limpiar carrito al cambiar de rol (por si acaso)
+            carrito = [];
+            // Llenar selects relevantes para el rol
+            llenarSelectCombosVenta();
+            actualizarUI(); // Actualizar toda la UI
+
+            // Mostrar tab por defecto según el rol
+            if (isAdmin) showTab('inventario');
+            else if (isVendedor) showTab('venta');
+            else if (isCocinero) showTab('cocina');
+            else showTab('venta'); // Fallback por si acaso
+        }
+
+        /** Carga los datos iniciales de inventario e historial desde el backend */
+        async function cargarDatosIniciales() {
+            console.log("Cargando datos iniciales...");
+            try {
+                // Usar Promise.all para cargar en paralelo
+                const [invResponse, histResponse] = await Promise.all([
+                    fetch(`${API_BASE_URL}/api/inventory`),
+                    fetch(`${API_BASE_URL}/api/history`)
+                ]);
+
+                // Verificar respuestas
+                if (!invResponse.ok) throw new Error(`Error al cargar inventario: ${invResponse.statusText}`);
+                if (!histResponse.ok) throw new Error(`Error al cargar historial: ${histResponse.statusText}`);
+
+                // Parsear JSON
+                const invData = await invResponse.json();
+                const histData = await histResponse.json();
+
+                // Actualizar estado global 'inventario'
+                // Usar || {} y || 0 para evitar errores si faltan claves en la respuesta
+                inventario.pollosEnteros = invData.inventory?.pollosEnteros || 0;
+                inventario.presas_total = invData.inventory?.presas_total || 0;
+                inventario.presa_precio_default = invData.inventory?.presa_precio_default || 0;
+                inventario.productos = invData.inventory?.productos || {};
+                inventario.combos = invData.combos || {};
+                inventario.presasPorPolloTotal = invData.presasPorPolloTotal || 8;
+                inventario.history = histData.history || [];
+
+                console.log("Datos cargados OK:", inventario);
+
+            } catch (error) {
+                console.error("Error crítico al cargar datos iniciales:", error);
+                mostrarFeedback(`Error al cargar datos: ${error.message}`, 'error');
+                // Opcional: Resetear inventario local a un estado vacío en caso de error grave
+                // inventario = { pollosEnteros: 0, presas_total: 0, presa_precio_default: 0, productos: {}, historial: [], combos: {}, presasPorPolloTotal: 8 };
+            }
+        }
+
+        /** Muestra una tab específica y oculta las demás */
+        function showTab(tabId) {
+            // Validar permiso para la tab antes de mostrarla
+             const buttonToShow = tabsNavEl ? tabsNavEl.querySelector(`.tab-button[data-tab='${tabId}']`) : null;
+             if (!buttonToShow || buttonToShow.disabled) {
+                 mostrarFeedback(`Acceso denegado a la pestaña '${tabId}'.`, 'error');
+                 console.warn(`Intento de acceso denegado a tab: ${tabId} por rol: ${currentUserRole}`);
+                 return; // No mostrar la tab si no tiene permiso
+             }
+
+
+            // Detener polling de cocina si salimos de esa tab
+            if (cocinaPollingIntervalId && tabId !== 'cocina') {
+                clearInterval(cocinaPollingIntervalId);
+                cocinaPollingIntervalId = null;
+                console.log("Polling de cocina detenido al cambiar de tab.");
+            }
+
+            // Ocultar todos los contenidos y quitar clase activa de botones
+            tabContents.forEach(content => content.classList.remove('active'));
+            const allTabButtons = tabsNavEl ? tabsNavEl.querySelectorAll('.tab-button') : [];
+            allTabButtons.forEach(button => button.classList.remove('active'));
+
+            // Mostrar contenido y marcar botón activo
+            const tabContentToShow = document.getElementById(`tab-${tabId}`);
+            // const activeTabButton = document.querySelector(`.tab-button[data-tab='${tabId}']`); // Ya lo obtuvimos antes
+
+            if (tabContentToShow) tabContentToShow.classList.add('active');
+            if (buttonToShow) buttonToShow.classList.add('active');
+
+            // Lógica específica al entrar a ciertas tabs
+            if (tabId === 'gestion') {
+                populateEditItemNames(); // Rellenar selects de edición
+            } else if (tabId === 'combos') {
+                populateCustomItemNames(); // Rellenar selects de creación
+                listarCombosExistentes(); // Listar combos
+            } else if (tabId === 'cocina') {
+                cargarOrdenesPendientes(); // Cargar órdenes al entrar
+                // Iniciar polling solo si no está activo ya
+                if (!cocinaPollingIntervalId) {
+                    cocinaPollingIntervalId = setInterval(cargarOrdenesPendientes, POLLING_INTERVAL_COCINA);
+                    console.log("Polling de cocina iniciado.");
+                }
+            }
+
+            // Re-renderizar iconos por si hay nuevos en la tab activa
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
+        // --- Lógica del Carrito de Ventas ---
+
+        /** Añade un combo seleccionado al carrito */
+        function agregarComboAlCarrito() {
+            const comboKey = comboSelectEl.value;
+            const cantidadInput = comboCantidadEl.value; // Obtener valor como string primero
+            console.log(`Intentando añadir combo: Key='${comboKey}', CantidadInput='${cantidadInput}'`);
+
+            // Validar selección de combo
+            if (!comboKey) {
+                mostrarFeedback('Seleccione un combo válido.', 'error');
+                return;
+            }
+
+            // Validar y parsear cantidad
+            const cantidad = parseInt(cantidadInput);
+            console.log(`Cantidad parseada: ${cantidad}`);
+            if (isNaN(cantidad) || cantidad <= 0) {
+                mostrarFeedback('Ingrese una cantidad numérica positiva.', 'error');
+                // Asegurarse de que el input muestre un valor válido por defecto si falla
+                comboCantidadEl.value = '1';
+                return;
+            }
+
+            // Obtener nombre display y validar stock (visual)
+            const displayName = nombresCombosDisplay[comboKey] || getNombreComboDisplay(comboKey);
+            const [stockOk, _] = validarStockComboVisual(comboKey);
+            if (!stockOk) {
+                 mostrarFeedback(`Stock insuficiente para el combo '${displayName}'.`, 'error');
+                 return; // No añadir si visualmente no hay stock
+            }
+
+            // Añadir al carrito
+            const itemToAdd = {
+                tipo: 'combo',
+                nombre: comboKey,
+                cantidad: cantidad, // Usar la cantidad parseada y validada
+                display: displayName
+            };
+            console.log("Añadiendo al carrito:", itemToAdd);
+            carrito.push(itemToAdd);
+
+            mostrarFeedback(`${cantidad} x '${displayName}' añadido(s) al carrito.`, 'success');
+            comboSelectEl.value = ''; // Resetear select
+            comboCantidadEl.value = '1'; // Resetear cantidad a 1
+            actualizarDisplayCarrito(); // Actualizar vista
+        }
+
+        /** Añade presas generales al carrito */
+        function agregarPresasGeneralesAlCarrito() {
+            const cantidadInput = addPresaGeneralCantidadInput.value;
+            console.log(`Intentando añadir presas: CantidadInput='${cantidadInput}'`);
+
+             // Validar y parsear cantidad
+            const cantidad = parseInt(cantidadInput);
+             console.log(`Cantidad parseada: ${cantidad}`);
+            if (isNaN(cantidad) || cantidad <= 0) {
+                mostrarFeedback('Ingrese una cantidad numérica positiva de presas.', 'error');
+                addPresaGeneralCantidadInput.value = '1';
+                return;
+            }
+
+             // Validar stock visualmente
+            if (inventario.presas_total < cantidad) {
+                mostrarFeedback(`Stock insuficiente de presas (Disp: ${inventario.presas_total}).`, 'error');
+                return;
+            }
+
+            const itemToAdd = {
+                tipo: 'presa',
+                nombre: 'presa_general',
+                cantidad: cantidad, // Usar la cantidad parseada y validada
+                display: 'Presa General'
+            };
+             console.log("Añadiendo al carrito:", itemToAdd);
+            carrito.push(itemToAdd);
+
+            mostrarFeedback(`${cantidad} x Presa General añadida(s) al carrito.`, 'success');
+            addPresaGeneralCantidadInput.value = '1'; // Resetear cantidad
+            actualizarDisplayCarrito();
+        }
+
+        /** Añade un producto seleccionado al carrito */
+        function agregarProductoAlCarrito() {
+            const nombreProducto = productoVentaSelectEl.value;
+            const cantidadInput = productoVentaCantidadEl.value;
+             console.log(`Intentando añadir producto: Nombre='${nombreProducto}', CantidadInput='${cantidadInput}'`);
+
+            if (!nombreProducto) {
+                 mostrarFeedback('Seleccione un producto válido.', 'error');
+                 return;
+            }
+
+             // Validar y parsear cantidad
+            const cantidad = parseInt(cantidadInput);
+             console.log(`Cantidad parseada: ${cantidad}`);
+            if (isNaN(cantidad) || cantidad <= 0) {
+                mostrarFeedback('Ingrese una cantidad numérica positiva.', 'error');
+                productoVentaCantidadEl.value = '1';
+                return;
+            }
+
+            // Validar stock visualmente
+            const stockDisponible = inventario.productos[nombreProducto]?.cantidad || 0;
+             if (stockDisponible < cantidad) {
+                mostrarFeedback(`Stock insuficiente para '${escapeHtml(nombreProducto)}' (Disp: ${stockDisponible}).`, 'error');
+                return;
+            }
+
+            const itemToAdd = {
+                tipo: 'producto',
+                nombre: nombreProducto,
+                cantidad: cantidad, // Usar la cantidad parseada y validada
+                display: nombreProducto
+            };
+             console.log("Añadiendo al carrito:", itemToAdd);
+            carrito.push(itemToAdd);
+
+            mostrarFeedback(`${cantidad} x '${escapeHtml(nombreProducto)}' añadido(s) al carrito.`, 'success');
+            productoVentaSelectEl.value = ''; // Resetear select
+            productoVentaCantidadEl.value = '1'; // Resetear cantidad
+            actualizarDisplayCarrito();
+        }
+
+
+        /** Remueve un item del carrito por su índice */
+        function removerDelCarrito(index) {
+            if (index >= 0 && index < carrito.length) {
+                const itemRemovido = carrito.splice(index, 1)[0]; // Remover y obtener el item
+                console.log("Item removido:", itemRemovido);
+                mostrarFeedback(`Item '${itemRemovido.display}' removido del carrito.`, 'success');
+                actualizarDisplayCarrito();
+            }
+        }
+
+        /** Actualiza la visualización del carrito en la UI */
         function actualizarDisplayCarrito() {
-            carritoListaEl.innerHTML = '';
-            let totalCarrito = 0; // Inicializar total
+            if (!carritoListaEl || !venderCarritoBtn || !carritoTotalItemsEl || !carritoTotalPrecioEl) return;
+
+            carritoListaEl.innerHTML = ''; // Limpiar lista
+            let totalCalculado = 0;
 
             if (carrito.length === 0) {
                 carritoListaEl.innerHTML = '<li class="italic text-gray-400">El carrito está vacío.</li>';
                 venderCarritoBtn.disabled = true;
                 carritoTotalItemsEl.textContent = 0;
-                carritoTotalPrecioEl.textContent = 'Total: $0.00'; // Mostrar total 0
+                carritoTotalPrecioEl.textContent = 'Total: $0.00';
             } else {
                 carrito.forEach((item, index) => {
-                    const iconName = item.tipo === 'combo' ? 'package' : (item.tipo === 'presa' ? 'drumstick' : 'box');
-                    const nombreMostrar = item.display || item.nombre;
-                    let precioUnitario = 0;
-                    let subtotalItem = 0;
-
-                    // Obtener precio unitario
-                    if (item.tipo === 'combo' && inventario.combos[item.nombre]) {
-                        precioUnitario = inventario.combos[item.nombre].precio || 0;
-                    } else if (item.tipo === 'producto' && inventario.productos[item.nombre]) {
-                        precioUnitario = inventario.productos[item.nombre].precio || 0;
+                    // Validar que la cantidad sea un número antes de calcular
+                    const cantidadItem = typeof item.cantidad === 'number' ? item.cantidad : 0;
+                    if (cantidadItem <= 0) {
+                         console.warn("Item en carrito con cantidad inválida:", item);
+                         // Opcional: mostrar visualmente que el item es inválido
                     }
-                    // Las presas individuales no tienen precio definido aquí
 
-                    subtotalItem = precioUnitario * item.cantidad;
-                    totalCarrito += subtotalItem; // Sumar al total general
+                    const icono = item.tipo === 'combo' ? 'package' : (item.tipo === 'presa' ? 'drumstick' : 'box');
+                    let precioUnitario = 0;
 
-                    carritoListaEl.innerHTML += `
-                        <li class="cart-item">
-                            <span>
-                                <i data-lucide="${iconName}" class="icon w-4 h-4 text-gray-600"></i>
-                                ${item.cantidad} x ${nombreMostrar}
-                                <span class="text-xs text-gray-500 ml-1">($${precioUnitario.toFixed(2)} c/u)</span>
-                            </span>
-                            <span class="font-medium">$${subtotalItem.toFixed(2)}</span> <button onclick="removerDelCarrito(${index})" class="cart-remove-btn" title="Eliminar">
-                                <i data-lucide="x-circle" class="w-4 h-4"></i>
-                            </button>
-                        </li>`;
+                    // Calcular precio unitario basado en el inventario actual
+                    if (item.tipo === 'combo' && inventario.combos && inventario.combos[item.nombre]) {
+                        precioUnitario = inventario.combos[item.nombre].precio || 0;
+                    } else if (item.tipo === 'producto' && inventario.productos && inventario.productos[item.nombre]) {
+                        precioUnitario = inventario.productos[item.nombre].precio || 0;
+                    } else if (item.tipo === 'presa') {
+                        precioUnitario = inventario.presa_precio_default || 0;
+                    }
+
+                    const subtotalItem = precioUnitario * cantidadItem; // Usar cantidad validada
+                    totalCalculado += subtotalItem;
+
+                    // Crear elemento de lista
+                    const li = document.createElement('li');
+                    li.className = 'cart-item';
+                    li.innerHTML = `
+                        <span class="flex-grow ${cantidadItem <= 0 ? 'text-red-500 italic' : ''}"> <i data-lucide="${icono}" class="icon w-4 h-4 text-gray-600"></i>
+                            ${cantidadItem > 0 ? cantidadItem : '?'} x ${escapeHtml(item.display)}
+                            <span class="text-xs text-gray-500 ml-1">($${precioUnitario.toFixed(2)} c/u)</span>
+                            ${cantidadItem <= 0 ? ' (Cantidad Inválida)' : ''}
+                        </span>
+                        <span class="font-medium w-20 text-right">$${subtotalItem.toFixed(2)}</span>
+                        <button onclick="removerDelCarrito(${index})" class="cart-remove-btn ml-2" title="Eliminar item">
+                            <i data-lucide="x-circle" class="w-4 h-4"></i>
+                        </button>
+                    `;
+                    carritoListaEl.appendChild(li);
                 });
-                venderCarritoBtn.disabled = false;
-                carritoTotalItemsEl.textContent = carrito.length;
-                carritoTotalPrecioEl.textContent = `Total: $${totalCarrito.toFixed(2)}`; // Mostrar total formateado
-                 lucide.createIcons();
+
+                // Habilitar botón solo si hay items VÁLIDOS en el carrito
+                const hayItemsValidos = carrito.some(item => typeof item.cantidad === 'number' && item.cantidad > 0);
+                venderCarritoBtn.disabled = !hayItemsValidos;
+
+                carritoTotalItemsEl.textContent = carrito.length; // Mostrar total de lineas, válidas o no
+                carritoTotalPrecioEl.textContent = `Total: $${totalCalculado.toFixed(2)}`;
+
+                // Re-renderizar iconos en el carrito
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+        }
+
+        /** Procesa la venta enviando el carrito al backend */
+        async function procesarVentaCarrito() {
+             // Filtrar items inválidos ANTES de enviar
+             const carritoValido = carrito.filter(item => typeof item.cantidad === 'number' && item.cantidad > 0);
+
+            if (carritoValido.length === 0) {
+                mostrarFeedback("No hay items válidos en el carrito para vender.", "error");
+                // Opcional: limpiar el carrito de items inválidos si se desea
+                // carrito = [];
+                // actualizarDisplayCarrito();
+                return;
+            }
+             // Si había items inválidos, informar al usuario (opcional)
+             if (carritoValido.length < carrito.length) {
+                 mostrarFeedback("Se ignoraron items con cantidad inválida.", "error");
+                 carrito = carritoValido; // Actualizar carrito local solo con los válidos
+                 actualizarDisplayCarrito(); // Reflejar el cambio
+             }
+
+
+            const informar = informarCocineroCheckbox ? informarCocineroCheckbox.checked : false;
+            const nota = notaCocineroInput ? notaCocineroInput.value.trim() : null;
+
+            // Deshabilitar botón para evitar doble click
+            if (venderCarritoBtn) venderCarritoBtn.disabled = true;
+            mostrarFeedback("Procesando venta...", "success", 10000); // Mensaje largo por si tarda
+
+            try {
+                // Crear payload asegurándose de que los datos son correctos
+                const payload = {
+                    cart: carritoValido, // Enviar SOLO el carrito válido
+                    informar_cocinero: informar,
+                    ...(nota && { nota_cocinero: nota }) // Añadir nota solo si existe
+                };
+                 console.log("Enviando payload de venta VÁLIDO:", JSON.stringify(payload));
+
+
+                const response = await fetch(`${API_BASE_URL}/api/sell`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                 console.log("Respuesta del backend:", result);
+
+
+                if (response.ok && result.success) {
+                    mostrarFeedback(result.message || '¡Venta procesada exitosamente!', 'success');
+                    carrito = []; // Limpiar carrito local
+                    if (notaCocineroInput) notaCocineroInput.value = ''; // Limpiar nota
+                    await cargarDatosIniciales(); // Recargar datos para reflejar nuevo inventario
+                    actualizarUI(); // Actualizar toda la UI (incluye carrito vacío)
+                } else {
+                    // Mostrar mensaje de error específico del backend
+                    mostrarFeedback(result.message || 'Error desconocido al procesar la venta.', 'error', 6000);
+                     // No rehabilitar el botón inmediatamente en caso de error de stock,
+                     // el usuario debe ajustar el carrito. Se rehabilitará al añadir/quitar items.
+                     actualizarDisplayCarrito(); // Actualizar carrito (puede que no cambie si fue error)
+
+                }
+            } catch (error) {
+                console.error("Error de red o conexión al procesar venta:", error);
+                mostrarFeedback('Error de conexión al intentar vender.', 'error');
+                 // Rehabilitar botón si fue error de conexión para reintentar
+                 if (venderCarritoBtn) venderCarritoBtn.disabled = carrito.length === 0;
+
+            }
+            // Nota: El botón se rehabilita/deshabilita principalmente en actualizarDisplayCarrito
+        }
+
+        // --- Lógica de Gestión de Inventario ---
+
+        /** Agrega pollos enteros al inventario */
+        async function agregarPollos() {
+            const cantidad = parseInt(addPollosCantidadInput.value);
+            if (isNaN(cantidad) || cantidad <= 0) {
+                mostrarFeedback('Ingrese una cantidad válida de pollos.', 'error');
+                return;
+            }
+            await enviarActualizacionInventario('/api/add/pollos', { quantity: cantidad }, addPollosCantidadInput);
+        }
+
+        /** Agrega presas generales al inventario */
+        async function agregarPresas() {
+            const cantidad = parseInt(addPresasCantidadInput.value);
+            if (isNaN(cantidad) || cantidad <= 0) {
+                mostrarFeedback('Ingrese una cantidad válida de presas.', 'error');
+                return;
+            }
+            await enviarActualizacionInventario('/api/add/presas_total', { quantity: cantidad }, addPresasCantidadInput);
+        }
+
+        /** Agrega o actualiza un producto adicional */
+        async function agregarProducto() {
+            const nombre = addProductoNombreEl.value.trim();
+            const cantidad = parseInt(addProductoCantidadEl.value);
+            const precioStr = addProductoPrecioEl.value;
+
+            if (!nombre || isNaN(cantidad) || cantidad <= 0 || precioStr === '') {
+                mostrarFeedback('Ingrese nombre, cantidad positiva y precio válido (puede ser 0).', 'error');
+                return;
+            }
+             let precio;
+             try {
+                 precio = parseFloat(precioStr);
+                 if (isNaN(precio) || precio < 0) throw new Error("Precio inválido");
+             } catch(e) {
+                  mostrarFeedback('Ingrese un precio numérico válido (0 o mayor).', 'error');
+                  return;
+             }
+
+
+            await enviarActualizacionInventario('/api/add/producto',
+                { name: nombre, quantity: cantidad, price: precio },
+                addProductoNombreEl, addProductoCantidadEl, addProductoPrecioEl // Inputs a limpiar
+            );
+        }
+
+        /** Elimina pollos enteros (merma) */
+        async function eliminarPollos() {
+            const cantidad = parseInt(removePollosCantidadInput.value);
+            if (isNaN(cantidad) || cantidad <= 0) {
+                mostrarFeedback('Ingrese cantidad válida a eliminar.', 'error');
+                return;
+            }
+            if (!confirm(`¿Está seguro de eliminar ${cantidad} pollos enteros (merma)? Esta acción descontará las presas correspondientes.`)) return;
+            await enviarActualizacionInventario('/api/remove/pollos', { quantity: cantidad }, removePollosCantidadInput);
+        }
+
+        /** Elimina presas generales (merma) */
+        async function eliminarPresas() {
+            const cantidad = parseInt(removePresasCantidadInput.value);
+            if (isNaN(cantidad) || cantidad <= 0) {
+                mostrarFeedback('Ingrese cantidad válida a eliminar.', 'error');
+                return;
+            }
+             if (!confirm(`¿Está seguro de eliminar ${cantidad} presas generales (merma)?`)) return;
+            await enviarActualizacionInventario('/api/remove/presas_total', { quantity: cantidad }, removePresasCantidadInput);
+        }
+
+        /** Elimina cantidad de un producto (merma) */
+        async function eliminarProducto() {
+            const nombre = productoEliminarSelectEl.value;
+            const cantidad = parseInt(productoEliminarCantidadEl.value);
+            if (!nombre || isNaN(cantidad) || cantidad <= 0) {
+                mostrarFeedback('Seleccione producto y cantidad válida a eliminar.', 'error');
+                return;
+            }
+             if (!confirm(`¿Está seguro de eliminar ${cantidad} unidad(es) de '${escapeHtml(nombre)}' (merma)?`)) return;
+            await enviarActualizacionInventario('/api/remove/producto', { name: nombre, quantity: cantidad }, productoEliminarSelectEl, productoEliminarCantidadEl);
+        }
+
+        /** Función genérica para enviar actualizaciones de inventario al backend */
+        async function enviarActualizacionInventario(endpoint, payload, ...inputsToClear) {
+            try {
+                const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    mostrarFeedback(result.message || 'Operación realizada con éxito.', 'success');
+                    // Limpiar inputs si la operación fue exitosa
+                    inputsToClear.forEach(input => { if (input) input.value = ''; });
+                    await cargarDatosIniciales(); // Recargar datos
+                    actualizarUI(); // Actualizar UI
+                } else {
+                    mostrarFeedback(result.message || `Error en la operación (${response.status}).`, 'error');
+                }
+            } catch (error) {
+                console.error(`Error de red en ${endpoint}:`, error);
+                mostrarFeedback('Error de conexión al actualizar inventario.', 'error');
             }
         }
 
 
-        async function procesarVentaCarrito() { /* ... (sin cambios lógicos, el backend ya calcula el total para el log) ... */ }
+        // --- Lógica de Edición de Precios ---
 
-        // --- CAMBIO: Enviar precio al agregar producto ---
-        async function agregarProducto() {
-            const nombreEl = document.getElementById('add-producto-nombre');
-            const cantidadEl = document.getElementById('add-producto-cantidad');
-            const precioEl = document.getElementById('add-producto-precio'); // Referencia al input de precio
-            let nombre = nombreEl.value.trim();
-            const cantidad = parseInt(cantidadEl.value);
-            const precio = precioEl.value; // Obtener valor del precio (como string)
+        /** Popula el select de nombres al cambiar el tipo de item a editar */
+        function populateEditItemNames() {
+            if (!editItemTypeSelect || !editItemNameSelect || !editItemNewPriceInput) return;
 
-            // Validar también el precio
-            if (!nombre || isNaN(cantidad) || cantidad <= 0 || precio === '' || parseFloat(precio) < 0) {
-                mostrarFeedback('Ingrese nombre, cantidad positiva y precio válido (0 o mayor).', 'error');
+            const itemType = editItemTypeSelect.value;
+            editItemNameSelect.innerHTML = '<option value="" disabled selected>Seleccione nombre...</option>'; // Resetear
+            editItemNameSelect.disabled = false;
+            editItemNewPriceInput.value = ''; // Limpiar precio
+
+            if (itemType === 'producto' && inventario.productos) {
+                Object.keys(inventario.productos).sort().forEach(nombre => {
+                    const precioActual = (inventario.productos[nombre].precio || 0).toFixed(2);
+                    editItemNameSelect.innerHTML += `<option value="${escapeHtml(nombre)}">${escapeHtml(nombre)} ($${precioActual})</option>`;
+                });
+            } else if (itemType === 'combo' && inventario.combos) {
+                Object.keys(inventario.combos)
+                    .sort((a, b) => (nombresCombosDisplay[a] || getNombreComboDisplay(a)).localeCompare(nombresCombosDisplay[b] || getNombreComboDisplay(b)))
+                    .forEach(comboKey => {
+                        const displayName = nombresCombosDisplay[comboKey] || getNombreComboDisplay(comboKey);
+                        const precioActual = (inventario.combos[comboKey].precio || 0).toFixed(2);
+                        editItemNameSelect.innerHTML += `<option value="${escapeHtml(comboKey)}">${displayName} ($${precioActual})</option>`;
+                    });
+            } else if (itemType === 'presa') {
+                const precioActual = (inventario.presa_precio_default || 0).toFixed(2);
+                editItemNameSelect.innerHTML = `<option value="${PRESA_PRICE_KEY}" selected>Presa General ($${precioActual})</option>`;
+                editItemNameSelect.disabled = true; // No se puede cambiar el nombre, solo el precio
+                editItemNewPriceInput.value = precioActual; // Poner precio actual
+            } else {
+                 editItemNameSelect.disabled = true; // Deshabilitar si no hay tipo
+            }
+        }
+
+        /** Envía la actualización de precio al backend */
+        async function actualizarPrecio() {
+            const itemType = editItemTypeSelect.value;
+            // Si es presa, el 'nombre' es la clave especial, sino, el valor del select
+            const itemName = (itemType === 'presa') ? PRESA_PRICE_KEY : editItemNameSelect.value;
+            const newPriceStr = editItemNewPriceInput.value;
+
+            if (!itemType || !itemName || newPriceStr === '') {
+                mostrarFeedback('Seleccione tipo, nombre (si aplica) e ingrese un nuevo precio.', 'error');
+                return;
+            }
+            let newPrice;
+            try {
+                 newPrice = parseFloat(newPriceStr);
+                 if (isNaN(newPrice) || newPrice < 0) throw new Error("Precio inválido");
+            } catch(e) {
+                 mostrarFeedback('Ingrese un precio numérico válido (0 o mayor).', 'error');
+                 return;
+            }
+
+
+            const payload = {
+                item_type: itemType,
+                item_name: itemName,
+                new_price: newPrice // Enviar como número
+            };
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/update/price`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    mostrarFeedback(result.message || 'Precio actualizado con éxito.', 'success');
+                    // Resetear formulario de edición
+                    editItemTypeSelect.value = '';
+                    editItemNameSelect.innerHTML = '<option value="" disabled selected>Seleccione nombre...</option>';
+                    editItemNameSelect.disabled = true;
+                    editItemNewPriceInput.value = '';
+                    await cargarDatosIniciales(); // Recargar datos
+                    actualizarUI(); // Actualizar UI
+                } else {
+                    mostrarFeedback(result.message || `Error al actualizar precio (${response.status}).`, 'error');
+                }
+            } catch (error) {
+                console.error("Error de red al actualizar precio:", error);
+                mostrarFeedback('Error de conexión al actualizar precio.', 'error');
+            }
+        }
+
+        // --- Lógica de Combos Personalizados ---
+
+        /** Popula el select de nombres al crear un combo personalizado */
+        function populateCustomItemNames() {
+            if (!customItemTypeSelect || !customItemNameSelect || !customItemQuantityInput) return;
+            const itemType = customItemTypeSelect.value;
+            const nameContainer = document.getElementById('custom-item-name-container');
+
+            customItemNameSelect.innerHTML = '<option value="" disabled selected>Seleccione nombre...</option>';
+            customItemNameSelect.disabled = false;
+            if (nameContainer) nameContainer.style.display = 'block'; // Mostrar por defecto
+
+            if (itemType === 'presa') {
+                // Si es presa, solo hay una opción y se oculta el select de nombre
+                customItemNameSelect.innerHTML = '<option value="presa_general" selected>Presa General</option>';
+                customItemNameSelect.disabled = true;
+                 if (nameContainer) nameContainer.style.display = 'none';
+            } else if (itemType === 'producto' && inventario.productos) {
+                 Object.keys(inventario.productos).sort().forEach(nombre => {
+                    // Mostrar stock disponible como referencia
+                    const stock = inventario.productos[nombre]?.cantidad || 0;
+                    customItemNameSelect.innerHTML += `<option value="${escapeHtml(nombre)}">${escapeHtml(nombre)} (Disp: ${stock})</option>`;
+                });
+                 if (Object.keys(inventario.productos).length === 0) {
+                     customItemNameSelect.innerHTML = '<option value="" disabled selected>No hay productos</option>';
+                     customItemNameSelect.disabled = true;
+                 }
+            } else {
+                 // Deshabilitar si no es presa ni producto, u ocultar si no hay productos
+                 customItemNameSelect.disabled = true;
+                 if(itemType !== 'presa' && nameContainer) nameContainer.style.display = 'none';
+            }
+        }
+
+        /** Añade un item (presa o producto) al constructor del combo actual */
+        function addItemToCustomComboBuilder() {
+            const type = customItemTypeSelect.value;
+            // Si es presa, el nombre es fijo, si no, tomar del select
+            const name = (type === 'presa') ? 'presa_general' : customItemNameSelect.value;
+            const quantityInput = customItemQuantityInput.value;
+             console.log(`Intentando añadir item a combo: Tipo='${type}', Nombre='${name}', CantidadInput='${quantityInput}'`);
+
+
+            if (!type || (type === 'producto' && !name)) {
+                 mostrarFeedback('Seleccione tipo y nombre (si es producto).', 'error');
+                 return;
+            }
+
+             // Validar y parsear cantidad
+            const quantity = parseInt(quantityInput);
+             console.log(`Cantidad parseada: ${quantity}`);
+            if (isNaN(quantity) || quantity <= 0) {
+                mostrarFeedback('Ingrese una cantidad numérica positiva.', 'error');
+                customItemQuantityInput.value = '1';
                 return;
             }
 
-            try {
-                const response = await fetch(`${API_BASE_URL}/api/add/producto`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    // Enviar nombre, cantidad Y PRECIO
-                    body: JSON.stringify({ name: nombre, quantity: cantidad, price: parseFloat(precio) })
-                });
-                const result = await response.json();
-                if (response.ok && result.success) {
-                    mostrarFeedback(result.message || 'Producto agregado/actualizado.', 'success');
-                    nombreEl.value = ''; cantidadEl.value = ''; precioEl.value = ''; // Limpiar los 3 campos
-                    await cargarDatosIniciales(); actualizarUI();
-                } else { mostrarFeedback(result.message || 'Error.', 'error'); }
-            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
+
+            // Añadir al array temporal
+            const itemToAdd = { type: type, name: name, quantity: quantity };
+             console.log("Añadiendo a combo builder:", itemToAdd);
+            currentCustomComboItems.push(itemToAdd);
+            updateCustomComboBuilderDisplay(); // Actualizar la lista visual
+
+            // Resetear campos de añadir item
+            customItemTypeSelect.value = '';
+            customItemNameSelect.innerHTML = '<option value="" disabled selected>Seleccione nombre...</option>';
+            customItemNameSelect.disabled = true; // Deshabilitar hasta que se elija tipo
+            document.getElementById('custom-item-name-container').style.display = 'block'; // Mostrar contenedor de nombre
+            customItemQuantityInput.value = '1';
         }
 
-        async function agregarPollos() { /* ... (sin cambios) ... */ }
-        async function agregarPresas() { /* ... (sin cambios) ... */ }
-        async function eliminarPollos() { /* ... (sin cambios) ... */ }
-        async function eliminarPresas() { /* ... (sin cambios) ... */ }
-        async function eliminarProducto() { /* ... (sin cambios) ... */ }
-        async function refreshData() { /* ... (sin cambios) ... */ }
-        function inicializarGrafico() { /* ... (sin cambios) ... */ }
-        function actualizarGrafico() { /* ... (sin cambios) ... */ }
+        /** Actualiza la lista visual de items en el constructor de combos */
+        function updateCustomComboBuilderDisplay() {
+            if (!customComboBuilderDisplay) return;
+            customComboBuilderDisplay.innerHTML = ''; // Limpiar
+
+            if (currentCustomComboItems.length === 0) {
+                customComboBuilderDisplay.innerHTML = '<p class="italic text-gray-400 text-sm">Añada items al combo...</p>';
+            } else {
+                const ul = document.createElement('ul');
+                ul.className = 'list-disc pl-5 space-y-1';
+                currentCustomComboItems.forEach((item, index) => {
+                    const li = document.createElement('li');
+                    li.className = 'combo-builder-item';
+                    const displayName = (item.type === 'presa') ? 'Presa General' : escapeHtml(item.name);
+                    li.innerHTML = `
+                        <span>${item.quantity} x ${displayName}</span>
+                        <button onclick="removeItemFromCustomComboBuilder(${index})" class="delete-combo-list-btn" title="Quitar item">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>`;
+                    ul.appendChild(li);
+                });
+                customComboBuilderDisplay.appendChild(ul);
+                // Re-renderizar iconos (para el botón de quitar)
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+        }
+
+        /** Quita un item del constructor de combos por su índice */
+        function removeItemFromCustomComboBuilder(index) {
+            if (index >= 0 && index < currentCustomComboItems.length) {
+                 const removed = currentCustomComboItems.splice(index, 1);
+                 console.log("Item removido de combo builder:", removed);
+                updateCustomComboBuilderDisplay();
+            }
+        }
+
+        /** Guarda el nuevo combo personalizado enviándolo al backend */
+        async function guardarNuevoCombo() {
+            const comboName = customComboNameInput.value.trim();
+            const comboPriceStr = customComboPriceInput.value;
+
+            if (!comboName || comboPriceStr === '' || currentCustomComboItems.length === 0) {
+                mostrarFeedback('Ingrese nombre, precio válido (puede ser 0) y añada al menos un item.', 'error');
+                return;
+            }
+             let comboPrice;
+             try {
+                 comboPrice = parseFloat(comboPriceStr);
+                 if (isNaN(comboPrice) || comboPrice < 0) throw new Error("Precio inválido");
+             } catch(e) {
+                  mostrarFeedback('Ingrese un precio numérico válido (0 o mayor).', 'error');
+                  return;
+             }
 
 
-        // --- Implementaciones de funciones restantes (copiadas para completitud) ---
-        // (Incluir aquí las implementaciones completas de las funciones marcadas como "sin cambios" si es necesario
-        //  asegurándose de que usan API_BASE_URL donde corresponda)
-        async function handleLogin(event) {
-            event.preventDefault();
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value;
-            const loginErrorEl = document.getElementById('login-error');
-            loginErrorEl.classList.add('hidden');
+            // Preparar datos para enviar
+            const itemsToSend = currentCustomComboItems.map(item => ({
+                type: item.type,
+                name: item.name,
+                quantity: item.quantity
+            }));
+
+            const comboData = {
+                name: comboName,
+                price: comboPrice, // Enviar como número
+                items: itemsToSend
+            };
+            console.log("Enviando nuevo combo personalizado:", comboData);
+
             try {
-                const response = await fetch(`${API_BASE_URL}/login`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
+                const response = await fetch(`${API_BASE_URL}/api/add/custom_combo`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(comboData)
                 });
                 const result = await response.json();
+
                 if (response.ok && result.success) {
-                    currentUserRole = result.role; currentUsername = username;
-                    loginScreenEl.classList.add('hidden'); mainAppEl.classList.remove('hidden');
-                    userInfoEl.textContent = `Usuario: ${currentUsername} (${currentUserRole})`;
+                    mostrarFeedback(result.message || 'Combo personalizado guardado con éxito.', 'success');
+                    // Limpiar formulario de creación
+                    customComboNameInput.value = '';
+                    customComboPriceInput.value = '';
+                    currentCustomComboItems = [];
+                    updateCustomComboBuilderDisplay();
+                    // Recargar datos y actualizar UI
                     await cargarDatosIniciales();
-                    setupUIForRole();
-                    mostrarFeedback(`Bienvenido ${currentUsername}! Rol: ${currentUserRole}`, 'success');
+                    actualizarUI(); // Esto re-listará los combos existentes
                 } else {
-                    mostrarFeedback(result.message || 'Credenciales incorrectas.', 'error');
-                    loginErrorEl.textContent = result.message || 'Credenciales incorrectas.';
-                    loginErrorEl.classList.remove('hidden'); document.getElementById('password').value = '';
+                    mostrarFeedback(result.message || `Error al guardar el combo (${response.status}).`, 'error');
                 }
             } catch (error) {
-                console.error("Error en login:", error);
-                mostrarFeedback('Error de conexión.', 'error');
-                loginErrorEl.textContent = 'Error de conexión.'; loginErrorEl.classList.remove('hidden');
+                console.error("Error de red al guardar combo personalizado:", error);
+                mostrarFeedback('Error de conexión al guardar el combo.', 'error');
             }
         }
-        function handleLogout() {
-            currentUserRole = null; currentUsername = null;
-            mainAppEl.classList.add('hidden'); loginScreenEl.classList.remove('hidden');
-            document.getElementById('username').value = ''; document.getElementById('password').value = '';
-            document.getElementById('login-error').classList.add('hidden');
-            userInfoEl.textContent = '';
-            carrito = [];
-            inventario = { presas: {}, productos: {}, historial: [], combos: {}, presasPorPollo: {} };
-            actualizarUI();
-            if (inventoryChart) { inventoryChart.destroy(); inventoryChart = null; }
+
+        /** Muestra la lista de combos existentes y popula el select para eliminar */
+        function listarCombosExistentes() {
+            if (!listaCombosExistentesEl || !deleteComboSelect) return;
+
+            listaCombosExistentesEl.innerHTML = '<li class="italic text-gray-400">Cargando combos...</li>';
+            deleteComboSelect.innerHTML = '<option value="" disabled selected>Seleccione combo a eliminar...</option>'; // Resetear select
+
+            if (inventario.combos && Object.keys(inventario.combos).length > 0) {
+                listaCombosExistentesEl.innerHTML = ''; // Limpiar lista
+                Object.keys(inventario.combos)
+                    .sort((a, b) => (nombresCombosDisplay[a] || getNombreComboDisplay(a)).localeCompare(nombresCombosDisplay[b] || getNombreComboDisplay(b)))
+                    .forEach(comboKey => {
+                        const comboData = inventario.combos[comboKey];
+                        const displayName = nombresCombosDisplay[comboKey] || getNombreComboDisplay(comboKey);
+                        const precio = (comboData.precio || 0).toFixed(2);
+                        let itemsDesc = [];
+                        // Construir descripción de items
+                        if (comboData.presas_necesarias && comboData.presas_necesarias > 0) {
+                            itemsDesc.push(`${comboData.presas_necesarias}x Presa(s)`);
+                        }
+                        if (comboData.productos && typeof comboData.productos === 'object') {
+                            Object.entries(comboData.productos).forEach(([prod, cant]) => itemsDesc.push(`${cant}x ${escapeHtml(prod)}`));
+                        }
+
+                        const li = document.createElement('li');
+                        li.className = "mb-1 pb-1 border-b border-gray-200 last:border-b-0";
+                        li.innerHTML = `
+                            <strong>${displayName}</strong> ($${precio})
+                            <span class="text-xs text-gray-500 block">(${itemsDesc.join(', ') || 'Vacío'})</span>`;
+                        listaCombosExistentesEl.appendChild(li);
+
+                        // Añadir al select de eliminación solo si es personalizado
+                        if (comboKey.startsWith('custom_')) {
+                            deleteComboSelect.innerHTML += `<option value="${escapeHtml(comboKey)}">${displayName}</option>`;
+                        }
+                    });
+                 // Si no hay combos personalizados para eliminar
+                 if (deleteComboSelect.options.length <= 1) {
+                      deleteComboSelect.innerHTML = '<option value="" disabled selected>No hay combos personalizados</option>';
+                 }
+
+            } else {
+                listaCombosExistentesEl.innerHTML = '<li class="italic text-gray-400">No hay combos definidos.</li>';
+                deleteComboSelect.innerHTML = '<option value="" disabled selected>No hay combos personalizados</option>';
+            }
         }
-        function setupUIForRole() {
-             const isAdmin = currentUserRole === 'admin';
-             const isVendedor = currentUserRole === 'vendedor';
-             tabButtons.forEach(button => {
-                 const tabName = button.dataset.tab;
-                 const allowed = isAdmin || (isVendedor && tabName === 'venta');
-                 button.disabled = !allowed;
-                 button.style.display = allowed ? 'inline-flex' : 'none';
-                 button.classList.toggle('disabled', !allowed);
-             });
-             carrito = [];
-             llenarSelectCombos();
-             actualizarUI();
-             if (isAdmin) showTab('inventario'); else if (isVendedor) showTab('venta');
-        }
-        async function cargarDatosIniciales() {
-            console.log("Cargando datos iniciales...");
+
+        /** Elimina el combo personalizado seleccionado */
+        async function eliminarComboSeleccionado() {
+            const comboKey = deleteComboSelect.value;
+            if (!comboKey) {
+                mostrarFeedback("Seleccione un combo personalizado para eliminar.", "error");
+                return;
+            }
+
+            const comboDisplayName = deleteComboSelect.options[deleteComboSelect.selectedIndex].text;
+            if (!confirm(`¿Está seguro de eliminar el combo personalizado "${comboDisplayName}"? Esta acción no se puede deshacer.`)) {
+                return;
+            }
+
+            console.log("Eliminando combo personalizado:", comboKey);
             try {
-                const [invResponse, histResponse] = await Promise.all([
-                    fetch(`${API_BASE_URL}/api/inventory`),
-                    fetch(`${API_BASE_URL}/api/history`)
-                ]);
-                if (!invResponse.ok) throw new Error(`Inv: ${invResponse.statusText}`);
-                if (!histResponse.ok) throw new Error(`Hist: ${histResponse.statusText}`);
-                const invData = await invResponse.json();
-                const histData = await histResponse.json();
-                inventario.pollosEnteros = invData.inventory?.pollosEnteros || 0;
-                inventario.presas = invData.inventory?.presas || {};
-                inventario.productos = invData.inventory?.productos || {}; // Ahora incluye precios
-                inventario.combos = invData.combos || {}; // Ahora incluye precios
-                inventario.presasPorPollo = invData.presasPorPollo || {};
-                inventario.history = histData.history || [];
-                console.log("Datos cargados OK.");
+                const response = await fetch(`${API_BASE_URL}/api/remove/custom_combo`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ combo_key: comboKey }) // Enviar la clave
+                });
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    mostrarFeedback(result.message || 'Combo personalizado eliminado.', 'success');
+                    await cargarDatosIniciales(); // Recargar datos
+                    actualizarUI(); // Actualizar listas y selects
+                } else {
+                    mostrarFeedback(result.message || `Error al eliminar el combo (${response.status}).`, 'error');
+                }
             } catch (error) {
-                console.error("Error cargando datos:", error);
-                mostrarFeedback('Error al cargar datos del servidor.', 'error');
-                inventario = { pollosEnteros: 0, presas: {}, productos: {}, historial: [], combos: {}, presasPorPollo: {} };
+                console.error("Error de red al eliminar combo:", error);
+                mostrarFeedback('Error de conexión al eliminar el combo.', 'error');
             }
         }
-        function showTab(tabId) {
-            const isAdmin = currentUserRole === 'admin';
-            const isVendedor = currentUserRole === 'vendedor';
-            const allowed = isAdmin || (isVendedor && tabId === 'venta');
-            if (!allowed) { mostrarFeedback(`Acceso denegado.`, 'error'); return; }
-            tabContents.forEach(content => content.classList.remove('active'));
-            tabButtons.forEach(button => button.classList.remove('active'));
-            const tabContentEl = document.getElementById(`tab-${tabId}`);
-            const activeButton = document.querySelector(`.tab-button[data-tab='${tabId}']`);
-            if (tabContentEl) tabContentEl.classList.add('active');
-            if (activeButton) activeButton.classList.add('active');
-            if (tabId === 'inventario') {
-                setTimeout(() => {
-                     if (inventoryChart) { inventoryChart.resize(); inventoryChart.update(); }
-                     else { inicializarGrafico(); }
-                }, 50);
-            }
-            lucide.createIcons();
-        }
-        function agregarComboAlCarrito() {
-            const comboKey = comboSelectEl.value;
-            const cantidad = parseInt(comboCantidadEl.value);
-            if (!comboKey || isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Seleccione combo y cantidad.', 'error'); return; }
-            const displayName = nombresCombosDisplay[comboKey] || comboKey;
-            carrito.push({ tipo: 'combo', nombre: comboKey, cantidad: cantidad, display: displayName });
-            mostrarFeedback(`${cantidad} x '${displayName}' añadidos.`, 'success');
-            comboSelectEl.value = ''; comboCantidadEl.value = '1';
-            actualizarDisplayCarrito();
-        }
-        function agregarPresasAlCarrito() {
-            const tipo = document.getElementById('sell-presas-tipo').value;
-            const cant = parseInt(document.getElementById('sell-presas-cantidad').value);
-            if (!tipo || isNaN(cant) || cant <= 0) { mostrarFeedback('Seleccione tipo y cantidad.', 'error'); return; }
-            carrito.push({ tipo: 'presa', nombre: tipo, cantidad: cant, display: tipo.charAt(0).toUpperCase() + tipo.slice(1) });
-            mostrarFeedback(`${cant} ${tipo}(s) añadidos.`, 'success');
-            document.getElementById('sell-presas-cantidad').value = '';
-            actualizarDisplayCarrito();
-        }
-        function agregarProductoAlCarrito() {
-            const nombre = document.getElementById('sell-producto-nombre').value;
-            const cant = parseInt(document.getElementById('sell-producto-cantidad').value);
-            if (!nombre || isNaN(cant) || cant <= 0) { mostrarFeedback('Seleccione producto y cantidad.', 'error'); return; }
-            carrito.push({ tipo: 'producto', nombre: nombre, cantidad: cant, display: nombre });
-            mostrarFeedback(`${cant} '${nombre}' añadidos.`, 'success');
-            document.getElementById('sell-producto-nombre').value = ''; document.getElementById('sell-producto-cantidad').value = '';
-            actualizarDisplayCarrito();
-        }
-        function removerDelCarrito(index) {
-            if (index >= 0 && index < carrito.length) {
-                carrito.splice(index, 1);
-                mostrarFeedback(`Item removido.`, 'success');
-                actualizarDisplayCarrito();
-            }
-        }
-        async function procesarVentaCarrito() {
-            if (carrito.length === 0) { mostrarFeedback("Carrito vacío.", "error"); return; }
-            venderCarritoBtn.disabled = true;
+
+        // --- FUNCIONES PARA COCINA ---
+
+        /** Carga las órdenes pendientes desde el backend */
+        async function cargarOrdenesPendientes() {
+            if (!cocinaLoadingEl || !cocinaOrderListEl) return; // Salir si no estamos en la tab cocina
+
+            console.log("Buscando órdenes pendientes para cocina...");
+            cocinaLoadingEl.classList.remove('hidden'); // Mostrar indicador de carga
+            cocinaOrderListEl.innerHTML = ''; // Limpiar lista anterior
+
             try {
-                const response = await fetch(`${API_BASE_URL}/api/sell`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ cart: carrito })
-                });
+                const response = await fetch(`${API_BASE_URL}/api/orders/pending`);
+                if (!response.ok) {
+                    // Intentar obtener mensaje de error del backend
+                    let errorMsg = `Error del servidor: ${response.statusText}`;
+                    try {
+                        const errData = await response.json();
+                        errorMsg = errData.message || errorMsg;
+                    } catch (_) {} // Ignorar si no se puede parsear JSON
+                    throw new Error(errorMsg);
+                }
+
                 const result = await response.json();
-                if (response.ok && result.success) {
-                    mostrarFeedback('Venta procesada!', 'success');
-                    carrito = [];
-                    await cargarDatosIniciales(); actualizarUI();
-                } else { mostrarFeedback(result.message || 'Error al vender.', 'error'); }
-            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
-            finally { venderCarritoBtn.disabled = carrito.length === 0; }
+                console.log('Órdenes pendientes recibidas:', result.orders);
+
+                if (result.success) {
+                    mostrarOrdenesPendientes(result.orders || []); // Pasar array vacío si no hay órdenes
+                } else {
+                    throw new Error(result.message || "Error desconocido al cargar órdenes.");
+                }
+            } catch (error) {
+                console.error("Error cargando órdenes pendientes:", error);
+                cocinaOrderListEl.innerHTML = `<p class="text-red-500 italic">Error al cargar órdenes: ${error.message}</p>`;
+                 // No mostrar feedback global para errores de polling, solo en la UI de cocina
+            } finally {
+                cocinaLoadingEl.classList.add('hidden'); // Ocultar indicador de carga
+            }
         }
-        async function agregarPollos() {
-            const cantidadEl = document.getElementById('add-pollos-cantidad');
-            const cantidad = parseInt(cantidadEl.value);
-            if (isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Cantidad inválida.', 'error'); return; }
+
+        /** Muestra las órdenes pendientes en la UI de cocina */
+        function mostrarOrdenesPendientes(orders) {
+            if (!cocinaOrderListEl) return;
+            cocinaOrderListEl.innerHTML = ''; // Limpiar
+
+            if (!orders || orders.length === 0) {
+                cocinaOrderListEl.innerHTML = '<p class="text-gray-500 italic">No hay órdenes pendientes.</p>';
+                return;
+            }
+
+            orders.forEach(order => {
+                const orderCard = document.createElement('div');
+                orderCard.className = 'order-card';
+                // Formatear hora localmente
+                const time = new Date(order.timestamp).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' });
+
+                // Construir lista de items
+                let itemsHtml = '<ul>';
+                if (Array.isArray(order.items) && order.items.length > 0) {
+                    order.items.forEach(item => {
+                        // Usar display o name, y asegurar cantidad
+                        const quantity = item.quantity || '?';
+                        const display = escapeHtml(item.display || item.name || 'Item Desconocido');
+                        itemsHtml += `<li>${quantity} x ${display}</li>`;
+                    });
+                } else {
+                    console.warn("Formato/contenido de items inválido para orden:", order.order_id, order.items);
+                    itemsHtml += '<li class="text-red-500 italic">Error: Items no disponibles.</li>';
+                }
+                itemsHtml += '</ul>';
+
+                // Añadir nota si existe
+                const notaHtml = order.nota ? `<div class="order-note"><strong>Nota:</strong> ${escapeHtml(order.nota)}</div>` : '';
+
+                // Construir HTML de la tarjeta
+                orderCard.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-semibold">Orden #${order.order_id}</span>
+                        <span class="text-sm text-gray-500">${time}</span>
+                    </div>
+                    <div>${itemsHtml}</div>
+                    ${notaHtml}
+                    <button onclick="marcarOrdenTerminada(${order.order_id})" class="mt-3 w-full bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-md shadow-sm text-sm font-medium flex items-center justify-center">
+                        <i data-lucide="check-circle" class="w-4 h-4 mr-1"></i> Marcar como Terminada
+                    </button>
+                `;
+                cocinaOrderListEl.appendChild(orderCard);
+            });
+
+            // Re-renderizar iconos en las tarjetas de orden
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
+        /** Marca una orden como terminada en el backend */
+        async function marcarOrdenTerminada(orderId) {
+            console.log(`Marcando orden ${orderId} como terminada...`);
+             // Deshabilitar botón temporalmente (opcional)
+            const button = event.target.closest('button');
+            if(button) button.disabled = true;
+
+
             try {
-                const response = await fetch(`${API_BASE_URL}/api/add/pollos`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ quantity: cantidad })
+                const response = await fetch(`${API_BASE_URL}/api/orders/complete/${orderId}`, {
+                    method: 'POST' // No necesita body
                 });
                 const result = await response.json();
+
                 if (response.ok && result.success) {
-                    mostrarFeedback(result.message || 'Pollos agregados.', 'success');
-                    cantidadEl.value = '';
-                    await cargarDatosIniciales(); actualizarUI();
-                } else { mostrarFeedback(result.message || 'Error.', 'error'); }
-            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
+                    mostrarFeedback(result.message || `Orden #${orderId} marcada como completada.`, 'success');
+                    cargarOrdenesPendientes(); // Recargar lista para quitar la completada
+                } else {
+                    mostrarFeedback(result.message || `Error al completar orden #${orderId} (${response.status}).`, 'error');
+                     if(button) button.disabled = false; // Rehabilitar si falló
+                }
+            } catch(error) {
+                console.error("Error de red al completar orden:", error);
+                mostrarFeedback('Error de conexión al completar orden.', 'error');
+                 if(button) button.disabled = false; // Rehabilitar si falló
+            }
         }
-        async function agregarPresas() {
-             const tipo = document.getElementById('add-presas-tipo').value;
-             const cantidad = parseInt(document.getElementById('add-presas-cantidad').value);
-             if (!tipo || isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Seleccione tipo y cantidad.', 'error'); return; }
-             try {
-                const response = await fetch(`${API_BASE_URL}/api/add/presas`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type: tipo, quantity: cantidad })
-                });
+
+        /** Guarda la preferencia del usuario sobre informar a cocina */
+        function guardarPreferenciaCocinero() {
+            if (informarCocineroCheckbox) {
+                try {
+                    localStorage.setItem('informarCocineroPref', informarCocineroCheckbox.checked);
+                    console.log('Preferencia de informar a cocinero guardada:', informarCocineroCheckbox.checked);
+                } catch (e) {
+                    console.warn("No se pudo guardar la preferencia en localStorage:", e);
+                }
+            }
+        }
+
+        // --- FUNCIONES PARA REPORTES ---
+
+        /** Genera el reporte de ventas llamando al backend */
+        async function generarReporteVentas() {
+            if (!reportStartDateEl || !reportEndDateEl || !reportLoadingEl || !reportResultsEl) return;
+
+            const startDate = reportStartDateEl.value;
+            const endDate = reportEndDateEl.value;
+
+            let url = `${API_BASE_URL}/api/reports/sales`;
+            const params = new URLSearchParams();
+            if (startDate) params.append('start_date', startDate);
+            // Ajustar fecha fin para incluir todo el día
+            if (endDate) {
+                 try {
+                    const end = new Date(endDate);
+                    end.setDate(end.getDate() + 1); // Ir al inicio del día siguiente
+                    params.append('end_date', end.toISOString().split('T')[0]); // Formato YYYY-MM-DD
+                 } catch (e) {
+                     mostrarFeedback("Formato de fecha final inválido.", "error");
+                     return;
+                 }
+            }
+
+            if (startDate || endDate) {
+                url += `?${params.toString()}`;
+            }
+
+            console.log("Generando reporte de ventas:", url);
+            reportLoadingEl.classList.remove('hidden'); // Mostrar carga
+            reportResultsEl.innerHTML = ''; // Limpiar resultados anteriores
+
+            try {
+                const response = await fetch(url);
+                 if (!response.ok) {
+                    let errorMsg = `Error ${response.status}`;
+                    try {
+                        const errData = await response.json();
+                        errorMsg = errData.message || errorMsg;
+                    } catch (_) {}
+                    throw new Error(errorMsg);
+                }
+
                 const result = await response.json();
-                if (response.ok && result.success) {
-                    mostrarFeedback(result.message || 'Presas agregadas.', 'success');
-                    document.getElementById('add-presas-cantidad').value = '';
-                    await cargarDatosIniciales(); actualizarUI();
-                } else { mostrarFeedback(result.message || 'Error.', 'error'); }
-            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
+                if (result.success) {
+                    mostrarResultadosReporte(result.sales || []); // Mostrar resultados
+                } else {
+                    throw new Error(result.message || "Error desconocido del backend al generar reporte.");
+                }
+            } catch (error) {
+                console.error("Error al generar reporte de ventas:", error);
+                mostrarFeedback(`Error al generar reporte: ${error.message}`, 'error');
+                reportResultsEl.innerHTML = `<p class="text-red-600 italic">Error al cargar el reporte.</p>`;
+            } finally {
+                reportLoadingEl.classList.add('hidden'); // Ocultar carga
+            }
         }
-        async function eliminarPollos() {
-             const cantidad = parseInt(document.getElementById('remove-pollos-cantidad').value);
-             if (isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Ingrese cantidad.', 'error'); return; }
-             if (!confirm(`¿Seguro eliminar ${cantidad} pollos (merma)?`)) return;
-             try {
-                const response = await fetch(`${API_BASE_URL}/api/remove/pollos`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ quantity: cantidad })
-                });
-                const result = await response.json();
-                if (response.ok && result.success) {
-                    mostrarFeedback(result.message || 'Pollos eliminados.', 'success');
-                    document.getElementById('remove-pollos-cantidad').value = '';
-                    await cargarDatosIniciales(); actualizarUI();
-                } else { mostrarFeedback(result.message || 'Error.', 'error'); }
-            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
+
+        /** Muestra los resultados del reporte de ventas en una tabla */
+        function mostrarResultadosReporte(salesData) {
+             if (!reportResultsEl) return;
+             reportResultsEl.innerHTML = ''; // Limpiar
+
+            if (!salesData || salesData.length === 0) {
+                reportResultsEl.innerHTML = `<p class="text-gray-500 italic">No se encontraron ventas en el período seleccionado.</p>`;
+                return;
+            }
+
+            let tableHtml = `<table class="report-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID Venta</th>
+                                        <th>Fecha/Hora</th>
+                                        <th>Items Vendidos</th>
+                                        <th class="text-right">Total Venta</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+            let granTotal = 0;
+
+            salesData.forEach(venta => {
+                // Formatear fecha/hora localmente
+                const fechaHora = new Date(venta.timestamp).toLocaleString('es-EC', { dateStyle: 'short', timeStyle: 'short' });
+                const totalVenta = parseFloat(venta.total_amount || 0);
+                granTotal += totalVenta;
+
+                // Construir lista de items para esta venta
+                let itemsHtml = '<ul>';
+                if (Array.isArray(venta.items)) {
+                     venta.items.forEach(item => {
+                        itemsHtml += `<li>${item.quantity} x ${escapeHtml(item.name)} ($${item.price.toFixed(2)} c/u)</li>`;
+                    });
+                }
+                itemsHtml += '</ul>';
+
+                tableHtml += `
+                    <tr>
+                        <td>${venta.sale_id}</td>
+                        <td>${fechaHora}</td>
+                        <td>${itemsHtml}</td>
+                        <td class="text-right font-medium">$${totalVenta.toFixed(2)}</td>
+                    </tr>`;
+            });
+
+            tableHtml += `</tbody>
+                            <tfoot>
+                                <tr>
+                                    <th colspan="3" class="text-right font-semibold">Gran Total:</th>
+                                    <th class="text-right font-bold">$${granTotal.toFixed(2)}</th>
+                                </tr>
+                            </tfoot>
+                          </table>`;
+
+            reportResultsEl.innerHTML = tableHtml;
         }
-        async function eliminarPresas() {
-             const tipo = document.getElementById('remove-presas-tipo').value;
-             const cantidad = parseInt(document.getElementById('remove-presas-cantidad').value);
-             if (!tipo || isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Seleccione tipo y cantidad.', 'error'); return; }
-             if (!confirm(`¿Seguro eliminar ${cantidad} ${tipo}(s) (merma)?`)) return;
-             try {
-                const response = await fetch(`${API_BASE_URL}/api/remove/presas`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type: tipo, quantity: cantidad })
-                });
-                const result = await response.json();
-                if (response.ok && result.success) {
-                    mostrarFeedback(result.message || 'Presas eliminadas.', 'success');
-                    document.getElementById('remove-presas-cantidad').value = '';
-                    await cargarDatosIniciales(); actualizarUI();
-                } else { mostrarFeedback(result.message || 'Error.', 'error'); }
-            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
-        }
-        async function eliminarProducto() {
-            const nombre = document.getElementById('remove-producto-nombre').value;
-            const cantidad = parseInt(document.getElementById('remove-producto-cantidad').value);
-            if (!nombre || isNaN(cantidad) || cantidad <= 0) { mostrarFeedback('Seleccione producto y cantidad.', 'error'); return; }
-             if (!confirm(`¿Seguro eliminar ${cantidad} '${nombre}' (merma)?`)) return;
-             try {
-                const response = await fetch(`${API_BASE_URL}/api/remove/producto`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: nombre, quantity: cantidad })
-                });
-                const result = await response.json();
-                if (response.ok && result.success) {
-                    mostrarFeedback(result.message || 'Producto eliminado.', 'success');
-                    document.getElementById('remove-producto-nombre').value = ''; document.getElementById('remove-producto-cantidad').value = '';
-                    await cargarDatosIniciales(); actualizarUI();
-                } else { mostrarFeedback(result.message || 'Error.', 'error'); }
-            } catch (error) { mostrarFeedback('Error de conexión.', 'error'); }
-        }
+
+
+        // --- FUNCIONES GENERALES ---
+
+        /** Refresca manualmente los datos del inventario */
         async function refreshData() {
-            console.log("Refrescando datos...");
-            refreshButton.disabled = true;
-            refreshButton.classList.add('opacity-50', 'cursor-not-allowed');
+            if (!refreshButton) return;
+            console.log("Refrescando datos manualmente...");
+            refreshButton.disabled = true; // Deshabilitar botón
+            refreshButton.classList.add('opacity-50', 'cursor-not-allowed', 'animate-spin'); // Estilo de carga
+
             try {
                 await cargarDatosIniciales();
-                actualizarUI();
-                mostrarFeedback('Datos actualizados.', 'success');
+                actualizarUI(); // Actualizar toda la UI con los nuevos datos
+                mostrarFeedback('Datos actualizados correctamente.', 'success');
             } catch (error) {
-                console.error("Error refrescando datos:", error);
-                mostrarFeedback('Error al actualizar datos.', 'error');
+                console.error("Error al refrescar datos manualmente:", error);
+                // El error ya se muestra en cargarDatosIniciales, no mostrar doble feedback
             } finally {
+                // Rehabilitar botón y quitar estilo de carga
                 refreshButton.disabled = false;
-                refreshButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                refreshButton.classList.remove('opacity-50', 'cursor-not-allowed', 'animate-spin');
             }
         }
-         function inicializarGrafico() {
-             const chartElement = document.getElementById('inventoryChart');
-             if (!chartElement || typeof Chart === 'undefined') { console.warn("Canvas o Chart.js no encontrado"); return; }
-             const ctx = chartElement.getContext('2d');
-             if (!ctx) { console.warn("No se pudo obtener contexto 2D"); return; }
-             if (inventoryChart) { inventoryChart.destroy(); inventoryChart = null; }
-             inventoryChart = new Chart(ctx, {
-                 type: 'bar', data: { labels: [], datasets: [{ label: 'Cantidad', data: [], backgroundColor: [], borderColor: [], borderWidth: 1 }] },
-                 options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 } } }, plugins: { legend: { display: false } } }
-             });
-             actualizarGrafico();
-        }
-        function actualizarGrafico() {
-             if (!inventoryChart) {
-                 if (document.getElementById('tab-inventario')?.classList.contains('active') && inventario && inventario.presas) { inicializarGrafico(); }
-                 if (!inventoryChart) return;
-             }
-             inventoryChart.data.labels = inventario.presas ? Object.keys(inventario.presas) : [];
-             inventoryChart.data.datasets[0].data = inventario.presas ? Object.values(inventario.presas) : [];
-             const bgColors = ['rgba(255, 99, 132, 0.6)', 'rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)', 'rgba(75, 192, 192, 0.6)'];
-             const borderColors = ['rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)', 'rgba(255, 206, 86, 1)', 'rgba(75, 192, 192, 1)'];
-             while (bgColors.length < inventoryChart.data.labels.length) {
-                 bgColors.push(`rgba(${Math.floor(Math.random()*255)}, ${Math.floor(Math.random()*255)}, ${Math.floor(Math.random()*255)}, 0.6)`);
-                 borderColors.push(`rgba(${Math.floor(Math.random()*255)}, ${Math.floor(Math.random()*255)}, ${Math.floor(Math.random()*255)}, 1)`);
-             }
-             inventoryChart.data.datasets[0].backgroundColor = bgColors.slice(0, inventoryChart.data.labels.length);
-             inventoryChart.data.datasets[0].borderColor = borderColors.slice(0, inventoryChart.data.labels.length);
-             if (document.getElementById('tab-inventario')?.classList.contains('active')) { inventoryChart.update(); }
-        }
+
 
         // --- Inicialización General ---
         document.addEventListener('DOMContentLoaded', () => {
-            lucide.createIcons();
-            loginScreenEl.classList.remove('hidden');
-            mainAppEl.classList.add('hidden');
+            console.log("DOM Cargado. Iniciando aplicación.");
+            if (typeof lucide !== 'undefined') {
+                 lucide.createIcons(); // Renderizar iconos iniciales
+            } else {
+                 console.warn("Biblioteca Lucide Icons no encontrada.");
+            }
+
+
+            // Mostrar pantalla de login, ocultar app principal
+            if (loginScreenEl) loginScreenEl.classList.remove('hidden');
+            if (mainAppEl) mainAppEl.classList.add('hidden');
+
+            // Cargar preferencia de informar a cocinero (si existe)
+            const savedPref = localStorage.getItem('informarCocineroPref');
+             if (informarCocineroCheckbox) {
+                informarCocineroCheckbox.checked = savedPref === null ? true : (savedPref === 'true');
+            }
+
+             // Configurar fechas por defecto para reportes (opcional)
+             // const today = new Date().toISOString().split('T')[0];
+             // if(reportStartDateEl) reportStartDateEl.value = today;
+             // if(reportEndDateEl) reportEndDateEl.value = today;
+
         });
 
     </script>
